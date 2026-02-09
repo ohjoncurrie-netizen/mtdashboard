@@ -11,11 +11,15 @@
 <body>
   <header>
     <h1>🗺️ MT Roads & Passes Map</h1>
-    <div>
-      <button onclick="MTApp.refreshData()">🔄 Refresh</button>
-      <button onclick="MTApp.toggleTheme()">🌙 Theme</button>
-      <a href="https://511.mt.gov/" target="_blank" class="mdt-link" style="font-size: 1.1rem;">📱 511 Live</a>
-    </div>
+<div>  <!-- Inside header div -->
+  <button id="refresh-btn">🔄 Refresh</button>
+  <button id="umap-btn">🗺️ Simple MT</button>
+  <button id="theme-btn">🌙 Theme</button>
+  <a href="https://511.mt.gov/" target="_blank" class="mdt-link" style="font-size: 1.1rem;">📱 511 Live</a>
+
+</div>
+
+
   </header>
 
   <div class="section">
@@ -35,6 +39,7 @@
   </div>
 
   <div class="last-updated" id="last-updated"></div>
+  
 
   <script src="config.js"></script>
   <script src="app.js" defer></script>

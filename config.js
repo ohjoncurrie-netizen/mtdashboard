@@ -19,3 +19,26 @@ window.CONFIG = {
     { id: 'BIL', lat: 45.81, lng: -108.61, name: 'Billings' }
   ]
 };
+
+// Simple Montana uMap integration (ID: 1357058)
+window.UMAP_ID = 1357058;
+
+// Auto-fetch function for your specific uMap
+async function fetchSimpleMontanaUMap() {
+  try {
+    // Get main map data
+    const mapData = await fetch(`https://umap.openstreetmap.fr/en/map/${UMAP_ID}/geojson/`).then(r => r.json());
+    
+    // Fetch all data layers
+    const fullData = { type: 'FeatureCollection', features: [] };
+    for (const layer of mapData.datalayers) {
+      const layerData = await fetch(`https://umap.openstreetmap.fr${mapData.urls.datalayer_view.replace('{pk}', layer.id)}`).then(r => r.json());
+      fullData.features.push(...layerData.features);
+    }
+    
+    return fullData;
+  } catch (e) {
+    console.error('uMap fetch failed:', e);
+    return null;
+  }
+}
