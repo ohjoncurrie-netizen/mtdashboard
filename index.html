@@ -5,58 +5,15 @@
   <title>MT Roads & Passes - Map Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    :root[data-theme="dark"] { 
-      --bg: #0a0a0a; --fg: #fff; --accent: #00ff88; --danger: #ff4444; 
-      --card: #1a1a1a; --border: #333; 
-    }
-    :root[data-theme="light"] { 
-      --bg: #f5f5f5; --fg: #111; --accent: #008844; --danger: #cc0000; 
-      --card: #fff; --border: #ddd; 
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      background: var(--bg); color: var(--fg); font-family: -apple-system, system-ui, sans-serif; 
-      line-height: 1.6; padding: 1rem; max-width: 1400px; margin: 0 auto; 
-    }
-    header { 
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; 
-      padding-bottom: 1rem; border-bottom: 2px solid var(--border); 
-    }
-    h1 { color: var(--accent); font-size: clamp(1.5rem, 4vw, 2.5rem); }
-    button { 
-      background: var(--card); color: var(--fg); border: 1px solid var(--border); 
-      padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.9rem; 
-      transition: all 0.3s; margin-left: 0.5rem;
-    }
-    button:hover { background: var(--accent); color: var(--bg); }
-    .section { margin-bottom: 3rem; }
-    h2 { color: var(--accent); margin-bottom: 1rem; font-size: 1.5rem; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
-    .card { 
-      background: var(--card); border-radius: 1rem; padding: 1.5rem; border: 1px solid var(--border); 
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
-    }
-    #map { height: 500px; border-radius: 1rem; border: 2px solid var(--border); }
-    .status { font-weight: bold; padding: 0.5rem; border-radius: 0.5rem; margin: 0.5rem 0; }
-    .status-open { background: rgba(0,255,0,0.2); color: #0f0; }
-    .status-closed { background: rgba(255,68,68,0.3); color: var(--danger); }
-    .status-chains { background: rgba(255,170,0,0.3); color: #ffaa00; }
-    .mdt-link { color: var(--accent); text-decoration: none; }
-    .mdt-link:hover { text-decoration: underline; }
-    .weather-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-    .weather-item { padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 0.75rem; text-align: center; }
-    @media (max-width: 768px) { #map { height: 350px; } body { padding: 0.5rem; } header { flex-direction: column; gap: 1rem; } }
-    .last-updated { font-size: 0.8rem; opacity: 0.7; margin-top: 1rem; }
-  </style>
 </head>
 <body>
   <header>
     <h1>🗺️ MT Roads & Passes Map</h1>
     <div>
-      <button onclick="fetchAllData()">🔄 Refresh</button>
-      <button onclick="toggleTheme()">🌙 Theme</button>
+      <button onclick="MTApp.refreshData()">🔄 Refresh</button>
+      <button onclick="MTApp.toggleTheme()">🌙 Theme</button>
       <a href="https://511.mt.gov/" target="_blank" class="mdt-link" style="font-size: 1.1rem;">📱 511 Live</a>
     </div>
   </header>
@@ -79,164 +36,7 @@
 
   <div class="last-updated" id="last-updated"></div>
 
-  <script>
-    // Montana boundary bounds: SW to NE corners
-    const MT_BOUNDS = [
-      [44.35, -116.05],  // Southwest corner
-      [49.00, -104.04]   // Northeast corner  
-    ];
-
-    // Leaflet map with Montana-only zoom restriction
-    const map = L.map('map', {
-      minZoom: 6,
-      maxZoom: 12,
-      maxBounds: MT_BOUNDS,
-      maxBoundsViscosity: 1.0  // Rubber band effect when hitting boundary
-    }).setView([46.6, -110.0], 7);  // Montana center, perfect zoom
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors | MT Roads Dashboard',
-      minZoom: 6,
-      maxZoom: 12
-    }).addTo(map);
-
-    // Pass data with coordinates
-    const CONFIG = {
-      passes: [
-        { name: 'Beartooth Hwy', lat: 45.0, lng: -109.6, status: 'Seasonally Closed (Oct-Jun)', chains: 'N/A', url: 'https://www.mdt.mt.gov/travinfo/beartooth/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/beartooth.html' },
-        { name: 'Marias Pass', lat: 48.5, lng: -113.7, status: 'Open - Dry', chains: 'None', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/marias.html' },
-        { name: 'Lookout Pass', lat: 47.0, lng: -115.7, status: 'Open - Chains Required', chains: 'Vehicles w/o snow tires/chains', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/lookout.html' },
-        { name: 'Rogers Pass', lat: 47.2, lng: -112.9, status: 'Open - Icy Patches', chains: 'None', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/rogers.html' }
-      ],
-      weatherStations: [
-        { id: 'BZN', lat: 45.78, lng: -111.15, name: 'Bozeman' },
-        { id: 'MSO', lat: 46.92, lng: -114.08, name: 'Missoula' },
-        { id: 'GTF', lat: 47.50, lng: -111.37, name: 'Great Falls' },
-        { id: 'BIL', lat: 45.81, lng: -108.61, name: 'Billings' }
-      ]
-    };
-
-    let passMarkers = [];
-    let weatherMarkers = [];
-
-    function addPassMarkers() {
-      passMarkers.forEach(marker => map.removeLayer(marker));
-      passMarkers = [];
-      
-      CONFIG.passes.forEach((pass) => {
-        const statusClass = pass.status.includes('Open') ? 'open' : pass.status.includes('Closed') ? 'closed' : 'chains';
-        const color = statusClass === 'open' ? '#0f0' : statusClass === 'closed' ? '#f00' : '#ffaa00';
-        
-        const marker = L.marker([pass.lat, pass.lng], {
-          icon: L.divIcon({
-            className: `pass-marker ${statusClass}`,
-            html: `<div style="background: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px ${color};"></div>`,
-            iconSize: [26, 26], iconAnchor: [13, 13]
-          })
-        }).addTo(map)
-        .bindPopup(`
-          <b>🏔️ ${pass.name}</b><br>
-          <span class="status ${statusClass}">${pass.status}</span><br>
-          Chains: ${pass.chains}<br>
-          <a href="${pass.url}" target="_blank" class="mdt-link">MDT Report →</a><br>
-          <a href="${pass.cam}" target="_blank" class="mdt-link">📷 Live Cam →</a>
-        `);
-        
-        passMarkers.push(marker);
-      });
-    }
-
-    function addWeatherMarkers(weatherData) {
-      weatherMarkers.forEach(marker => map.removeLayer(marker));
-      weatherMarkers = [];
-      
-      CONFIG.weatherStations.forEach(station => {
-        const stationData = weatherData?.find(w => w.station_id === station.id);
-        if (stationData) {
-          const temp = Math.round(stationData.air_temp_f || 0);
-          const color = temp > 32 ? '#ffaa00' : '#00aaff';
-          
-          const marker = L.marker([station.lat, station.lng], {
-            icon: L.divIcon({
-              className: 'weather-marker',
-              html: `<div style="background: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff;"></div>`,
-              iconSize: [20, 20], iconAnchor: [10, 10]
-            })
-          }).addTo(map)
-          .bindPopup(`
-            <b>🌤️ ${station.name} (${station.id})</b><br>
-            ${temp}°F | ${(stationData.wind_speed_mph || 0).toFixed(1)}mph<br>
-            Precip: ${(stationData.precip_in || 0).toFixed(2)}"
-          `);
-          
-          weatherMarkers.push(marker);
-        }
-      });
-    }
-
-    function renderPassList() {
-      let html = '';
-      CONFIG.passes.forEach(pass => {
-        const statusClass = pass.status.includes('Open') ? 'status-open' : pass.status.includes('Closed') ? 'status-closed' : 'status-chains';
-        html += `
-          <div style="margin-bottom: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 0.5rem;">
-            <strong>${pass.name}</strong><br>
-            <div class="status ${statusClass}">${pass.status}</div>
-            <div>${pass.chains}</div>
-            <a href="${pass.url}" target="_blank" class="mdt-link">MDT →</a>
-          </div>
-        `;
-      });
-      document.getElementById('passes-list').innerHTML = html;
-    }
-
-    async function fetchWeather() {
-      try {
-        const resp = await fetch('https://mesonet.climate.umt.edu/api/v2/latest/?limit=20');
-        const data = await resp.json();
-        addWeatherMarkers(data);
-        renderWeatherList(data);
-      } catch(e) {
-        console.error('Weather fetch failed');
-      }
-    }
-
-    function renderWeatherList(data) {
-      let html = '';
-      CONFIG.weatherStations.forEach(station => {
-        const stationData = data?.find(w => w.station_id === station.id);
-        if (stationData) {
-          html += `
-            <div class="weather-item">
-              <strong>${station.name}</strong><br>
-              ${Math.round(stationData.air_temp_f || 0)}°F<br>
-              ${(stationData.wind_speed_mph || 0).toFixed(1)}mph
-            </div>
-          `;
-        }
-      });
-      document.getElementById('weather-stations').innerHTML = html || '<p>No weather data</p>';
-    }
-
-    async function fetchAllData() {
-      await fetchWeather();
-      document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
-    }
-
-    function toggleTheme() {
-      const html = document.documentElement;
-      html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-    }
-
-    // Lock map to Montana + initialize
-    map.setMaxBounds(MT_BOUNDS);
-    map.fitBounds(MT_BOUNDS, { padding: [20, 20], maxZoom: 8 });
-    
-    addPassMarkers();
-    renderPassList();
-    fetchAllData();
-    setInterval(fetchAllData, 300000); // 5 min
-    
-  </script>
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
