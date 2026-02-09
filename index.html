@@ -2,241 +2,195 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <title>MT Roads & Passes - Map Dashboard</title>
+  <title>Montana Road & Weather Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root[data-theme="dark"] { 
-      --bg: #0a0a0a; --fg: #fff; --accent: #00ff88; --danger: #ff4444; 
-      --card: #1a1a1a; --border: #333; 
+      --bg: #0a0a0a; --fg: #eee; --accent: #00ff88; --danger: #ff4444; 
+      --warning: #ffaa00; --card: #1a1a1a; --border: #333; 
     }
     :root[data-theme="light"] { 
-      --bg: #f5f5f5; --fg: #111; --accent: #008844; --danger: #cc0000; 
-      --card: #fff; --border: #ddd; 
+      --bg: #f9f9f9; --fg: #222; --accent: #008844; --danger: #cc0000; 
+      --warning: #e67e22; --card: #fff; --border: #ddd; 
     }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
-      background: var(--bg); color: var(--fg); font-family: -apple-system, system-ui, sans-serif; 
-      line-height: 1.6; padding: 1rem; max-width: 1400px; margin: 0 auto; 
+      background: var(--bg); color: var(--fg); 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      padding: 15px; 
     }
-    header { 
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; 
-      padding-bottom: 1rem; border-bottom: 2px solid var(--border); 
-    }
-    h1 { color: var(--accent); font-size: clamp(1.5rem, 4vw, 2.5rem); }
+
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .controls { display: flex; gap: 10px; }
+    
     button { 
-      background: var(--card); color: var(--fg); border: 1px solid var(--border); 
-      padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.9rem; 
-      transition: all 0.3s; margin-left: 0.5rem;
+      padding: 8px 16px; cursor: pointer; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--card); color: var(--fg); transition: 0.2s;
     }
-    button:hover { background: var(--accent); color: var(--bg); }
-    .section { margin-bottom: 3rem; }
-    h2 { color: var(--accent); margin-bottom: 1rem; font-size: 1.5rem; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
-    .card { 
-      background: var(--card); border-radius: 1rem; padding: 1.5rem; border: 1px solid var(--border); 
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
+    button:hover { border-color: var(--accent); color: var(--accent); }
+
+    #map { height: 450px; border-radius: 12px; border: 2px solid var(--border); margin-bottom: 20px; z-index: 1; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+    .section { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid var(--border); }
+    
+    h2 { margin-bottom: 12px; font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+
+    /* Pass List Styles */
+    .pass-card { 
+      padding: 10px; margin-bottom: 8px; border-radius: 6px; 
+      background: rgba(255,255,255,0.03); border-left: 4px solid #666;
     }
-    #map { height: 500px; border-radius: 1rem; border: 2px solid var(--border); }
-    .status { font-weight: bold; padding: 0.5rem; border-radius: 0.5rem; margin: 0.5rem 0; }
-    .status-open { background: rgba(0,255,0,0.2); color: #0f0; }
-    .status-closed { background: rgba(255,68,68,0.3); color: var(--danger); }
-    .status-chains { background: rgba(255,170,0,0.3); color: #ffaa00; }
-    .mdt-link { color: var(--accent); text-decoration: none; }
-    .mdt-link:hover { text-decoration: underline; }
-    .weather-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-    .weather-item { padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 0.75rem; text-align: center; }
-    @media (max-width: 768px) { #map { height: 350px; } body { padding: 0.5rem; } header { flex-direction: column; gap: 1rem; } }
-    .last-updated { font-size: 0.8rem; opacity: 0.7; margin-top: 1rem; }
+    .status-open { border-left-color: var(--accent); }
+    .status-closed { border-left-color: var(--danger); background: rgba(255,68,68,0.1); }
+    .status-warning { border-left-color: var(--warning); }
+
+    /* Weather Grid */
+    .weather-container { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .weather-item { 
+      padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; border: 1px solid var(--border);
+      text-align: center;
+    }
+    .temp { font-size: 1.4rem; font-weight: bold; color: var(--accent); display: block; }
+    
+    .last-updated { font-size: 0.8rem; opacity: 0.6; margin-top: 10px; text-align: right; }
+
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+      #map { height: 300px; }
+    }
   </style>
 </head>
 <body>
+
   <header>
-    <h1>🗺️ MT Roads & Passes Map</h1>
-    <div>
+    <h1>MT Road Dashboard</h1>
+    <div class="controls">
       <button onclick="fetchAllData()">🔄 Refresh</button>
-      <button onclick="toggleTheme()">🌙 Theme</button>
-      <a href="https://511.mt.gov/" target="_blank" class="mdt-link" style="font-size: 1.1rem;">📱 511 Live</a>
+      <button onclick="toggleTheme()">🌓 Theme</button>
     </div>
   </header>
 
-  <div class="section">
-    <h2>🗺️ Montana Passes (Locked View)</h2>
-    <div id="map"></div>
-  </div>
+  <div id="map"></div>
 
-  <div class="section grid">
-    <div class="card">
-      <h3>🏔️ Pass Status</h3>
-      <div id="passes-list"></div>
+  <div class="grid">
+    <div class="section">
+      <h2>🏔️ Mountain Passes</h2>
+      <div id="pass-list">Loading passes...</div>
     </div>
-    <div class="card">
-      <h3>🌤️ Live Weather</h3>
-      <div class="weather-grid" id="weather-stations"></div>
+    <div class="section">
+      <h2>🌡️ Live Weather (Mesonet)</h2>
+      <div id="weather-stations" class="weather-container">Loading live data...</div>
+      <p class="last-updated" id="last-updated">Waiting for sync...</p>
     </div>
   </div>
-
-  <div class="last-updated" id="last-updated"></div>
 
   <script>
-    // Montana boundary bounds: SW to NE corners
-    const MT_BOUNDS = [
-      [44.35, -116.05],  // Southwest corner
-      [49.00, -104.04]   // Northeast corner  
-    ];
-
-    // Leaflet map with Montana-only zoom restriction
-    const map = L.map('map', {
-      minZoom: 6,
-      maxZoom: 12,
-      maxBounds: MT_BOUNDS,
-      maxBoundsViscosity: 1.0  // Rubber band effect when hitting boundary
-    }).setView([46.6, -110.0], 7);  // Montana center, perfect zoom
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors | MT Roads Dashboard',
-      minZoom: 6,
-      maxZoom: 12
-    }).addTo(map);
-
-    // Pass data with coordinates
     const CONFIG = {
+      // Define your key passes here
       passes: [
-        { name: 'Beartooth Hwy', lat: 45.0, lng: -109.6, status: 'Seasonally Closed (Oct-Jun)', chains: 'N/A', url: 'https://www.mdt.mt.gov/travinfo/beartooth/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/beartooth.html' },
-        { name: 'Marias Pass', lat: 48.5, lng: -113.7, status: 'Open - Dry', chains: 'None', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/marias.html' },
-        { name: 'Lookout Pass', lat: 47.0, lng: -115.7, status: 'Open - Chains Required', chains: 'Vehicles w/o snow tires/chains', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/lookout.html' },
-        { name: 'Rogers Pass', lat: 47.2, lng: -112.9, status: 'Open - Icy Patches', chains: 'None', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/rogers.html' }
+        { name: "Lookout Pass (I-90)", lat: 47.455, lon: -115.697, status: "Open" },
+        { name: "Homestake Pass (I-90)", lat: 45.921, lon: -112.411, status: "Open" },
+        { name: "Marias Pass (US-2)", lat: 48.316, lon: -113.355, status: "Caution" },
+        { name: "Rogers Pass (MT-200)", lat: 47.079, lon: -112.355, status: "Open" },
+        { name: "Bozeman Pass (I-90)", lat: 45.661, lon: -110.817, status: "Open" }
       ],
+      // Mesonet IDs for matching live data
       weatherStations: [
-        { id: 'BZN', lat: 45.78, lng: -111.15, name: 'Bozeman' },
-        { id: 'MSO', lat: 46.92, lng: -114.08, name: 'Missoula' },
-        { id: 'GTF', lat: 47.50, lng: -111.37, name: 'Great Falls' },
-        { id: 'BIL', lat: 45.81, lng: -108.61, name: 'Billings' }
+        { id: "mso", name: "Missoula" },
+        { id: "bzn", name: "Bozeman" },
+        { id: "hln", name: "Helena" },
+        { id: "gtf", name: "Great Falls" }
       ]
     };
 
-    let passMarkers = [];
-    let weatherMarkers = [];
+    // Initialize Map
+    const map = L.map('map').setView([47.0, -110.0], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const MT_BOUNDS = [[44.3, -116.1], [49.0, -104.0]];
+    map.setMaxBounds(MT_BOUNDS);
 
-    function addPassMarkers() {
-      passMarkers.forEach(marker => map.removeLayer(marker));
-      passMarkers = [];
-      
-      CONFIG.passes.forEach((pass) => {
-        const statusClass = pass.status.includes('Open') ? 'open' : pass.status.includes('Closed') ? 'closed' : 'chains';
-        const color = statusClass === 'open' ? '#0f0' : statusClass === 'closed' ? '#f00' : '#ffaa00';
-        
-        const marker = L.marker([pass.lat, pass.lng], {
-          icon: L.divIcon({
-            className: `pass-marker ${statusClass}`,
-            html: `<div style="background: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px ${color};"></div>`,
-            iconSize: [26, 26], iconAnchor: [13, 13]
-          })
-        }).addTo(map)
-        .bindPopup(`
-          <b>🏔️ ${pass.name}</b><br>
-          <span class="status ${statusClass}">${pass.status}</span><br>
-          Chains: ${pass.chains}<br>
-          <a href="${pass.url}" target="_blank" class="mdt-link">MDT Report →</a><br>
-          <a href="${pass.cam}" target="_blank" class="mdt-link">📷 Live Cam →</a>
-        `);
-        
-        passMarkers.push(marker);
-      });
+    function getStatusClass(status) {
+      const s = status.toLowerCase();
+      if (s.includes('closed')) return 'status-closed';
+      if (s.includes('caution') || s.includes('chains') || s.includes('ice')) return 'status-warning';
+      return 'status-open';
     }
 
-    function addWeatherMarkers(weatherData) {
-      weatherMarkers.forEach(marker => map.removeLayer(marker));
-      weatherMarkers = [];
+    function renderPasses() {
+      const list = document.getElementById('pass-list');
+      list.innerHTML = '';
       
-      CONFIG.weatherStations.forEach(station => {
-        const stationData = weatherData?.find(w => w.station_id === station.id);
-        if (stationData) {
-          const temp = Math.round(stationData.air_temp_f || 0);
-          const color = temp > 32 ? '#ffaa00' : '#00aaff';
-          
-          const marker = L.marker([station.lat, station.lng], {
-            icon: L.divIcon({
-              className: 'weather-marker',
-              html: `<div style="background: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff;"></div>`,
-              iconSize: [20, 20], iconAnchor: [10, 10]
-            })
-          }).addTo(map)
-          .bindPopup(`
-            <b>🌤️ ${station.name} (${station.id})</b><br>
-            ${temp}°F | ${(stationData.wind_speed_mph || 0).toFixed(1)}mph<br>
-            Precip: ${(stationData.precip_in || 0).toFixed(2)}"
-          `);
-          
-          weatherMarkers.push(marker);
-        }
-      });
-    }
-
-    function renderPassList() {
-      let html = '';
       CONFIG.passes.forEach(pass => {
-        const statusClass = pass.status.includes('Open') ? 'status-open' : pass.status.includes('Closed') ? 'status-closed' : 'status-chains';
-        html += `
-          <div style="margin-bottom: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 0.5rem;">
+        const sClass = getStatusClass(pass.status);
+        
+        // Add to List
+        list.innerHTML += `
+          <div class="pass-card ${sClass}">
             <strong>${pass.name}</strong><br>
-            <div class="status ${statusClass}">${pass.status}</div>
-            <div>${pass.chains}</div>
-            <a href="${pass.url}" target="_blank" class="mdt-link">MDT →</a>
+            <small>Status: ${pass.status}</small>
           </div>
         `;
+
+        // Add to Map
+        L.circleMarker([pass.lat, pass.lon], {
+          radius: 8,
+          color: sClass === 'status-closed' ? '#ff4444' : (sClass === 'status-warning' ? '#ffaa00' : '#00ff88'),
+          fillOpacity: 0.8
+        }).addTo(map).bindPopup(`<b>${pass.name}</b><br>Status: ${pass.status}`);
       });
-      document.getElementById('passes-list').innerHTML = html;
     }
 
     async function fetchWeather() {
+      const weatherGrid = document.getElementById('weather-stations');
       try {
-        const resp = await fetch('https://mesonet.climate.umt.edu/api/v2/latest/?limit=20');
+        // Live Montana Mesonet API
+        const resp = await fetch('https://mesonet.climate.umt.edu/api/v2/latest/?type=json');
         const data = await resp.json();
-        addWeatherMarkers(data);
-        renderWeatherList(data);
-      } catch(e) {
-        console.error('Weather fetch failed');
+        
+        let html = '';
+        CONFIG.weatherStations.forEach(loc => {
+          const stationData = data.find(s => s.station.toLowerCase() === loc.id.toLowerCase());
+          if (stationData) {
+            const temp = stationData.air_temp ? Math.round(stationData.air_temp) : '--';
+            const wind = stationData.wind_speed ? stationData.wind_speed.toFixed(1) : '0';
+            
+            html += `
+              <div class="weather-item">
+                <small>${loc.name}</small>
+                <span class="temp">${temp}°F</span>
+                <small>💨 ${wind} mph</small>
+              </div>
+            `;
+          }
+        });
+        weatherGrid.innerHTML = html || '<p>Data unavailable</p>';
+      } catch (e) {
+        console.error('Weather fetch error:', e);
+        weatherGrid.innerHTML = '<p>Error loading Mesonet data</p>';
       }
     }
 
-    function renderWeatherList(data) {
-      let html = '';
-      CONFIG.weatherStations.forEach(station => {
-        const stationData = data?.find(w => w.station_id === station.id);
-        if (stationData) {
-          html += `
-            <div class="weather-item">
-              <strong>${station.name}</strong><br>
-              ${Math.round(stationData.air_temp_f || 0)}°F<br>
-              ${(stationData.wind_speed_mph || 0).toFixed(1)}mph
-            </div>
-          `;
-        }
-      });
-      document.getElementById('weather-stations').innerHTML = html || '<p>No weather data</p>';
-    }
-
     async function fetchAllData() {
+      renderPasses();
       await fetchWeather();
-      document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+      document.getElementById('last-updated').textContent = `Last Sync: ${new Date().toLocaleTimeString()}`;
     }
 
     function toggleTheme() {
       const html = document.documentElement;
-      html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+      const current = html.getAttribute('data-theme');
+      html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
     }
 
-    // Lock map to Montana + initialize
-    map.setMaxBounds(MT_BOUNDS);
-    map.fitBounds(MT_BOUNDS, { padding: [20, 20], maxZoom: 8 });
-    
-    addPassMarkers();
-    renderPassList();
+    // Run on Load
     fetchAllData();
-    setInterval(fetchAllData, 300000); // 5 min
-    
+    // Auto-refresh every 5 minutes
+    setInterval(fetchAllData, 300000);
+
   </script>
 </body>
 </html>
