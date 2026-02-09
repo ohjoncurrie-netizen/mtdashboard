@@ -5,22 +5,57 @@
   <title>MT Roads & Passes - Map Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.awesome-markers@2.0.2/dist/leaflet.awesome-markers.css" />
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.awesome-markers@2.0.2/dist/leaflet.awesome-markers.js"></script>
+  <script async defer 
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXY5noMi8eAp2uM9zWOMHYGRC_k_PeRU0&libraries=geometry&callback=initGoogleMaps"
+  type="text/javascript"></script>
+
 </head>
 <body>
   <header>
-    <h1>🗺️ MT Roads & Passes Map</h1>
-<div>  <!-- Inside header div -->
-  <button id="refresh-btn">🔄 Refresh</button>
-  <button id="umap-btn">🗺️ Simple MT</button>
-  <button id="theme-btn">🌙 Theme</button>
-  <a href="https://511.mt.gov/" target="_blank" class="mdt-link" style="font-size: 1.1rem;">📱 511 Live</a>
-
-</div>
-
-
+    <h1>🗺️ MT Roads & Passes + Business Directory</h1>
+    <div>
+      <button id="refresh-btn">🔄 Refresh</button>
+      <button id="umap-btn">🗺️ Simple MT</button>
+      <button id="business-btn">🏢 Businesses</button>
+      <button id="theme-btn">🌙 Theme</button>
+      <a href="https://511.mt.gov/" target="_blank" class="mdt-link" style="font-size: 1.1rem;">📱 511 Live</a>
+    </div>
   </header>
+
+  <!-- NEW: Business Submission Form -->
+  <div class="section" id="business-form-section" style="display: none;">
+    <h2>🏢 Add Your Business ($5/month)</h2>
+    <div class="card">
+      <form id="business-form">
+        <div class="form-group">
+          <label>Business Name</label>
+          <input type="text" id="biz-name" required>
+        </div>
+        <div class="form-group">
+          <label>Address/Location</label>
+          <input type="text" id="biz-address" placeholder="123 Main St, Bozeman" required>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" id="biz-phone">
+        </div>
+        <div class="form-group">
+          <label>Website</label>
+          <input type="url" id="biz-website">
+        </div>
+        <div class="form-group">
+          <label>Icon (🏪🍺🏔️🍔 etc.)</label>
+          <input type="text" id="biz-icon" placeholder="🏪" maxlength="2">
+        </div>
+        <button type="submit">💳 Subscribe & Add ($5/month)</button>
+      </form>
+      <p class="small">Payment via Stripe. Auto-renews monthly. Cancel anytime.</p>
+    </div>
+  </div>
 
   <div class="section">
     <h2>🗺️ Montana Passes (Locked View)</h2>
@@ -36,12 +71,15 @@
       <h3>🌤️ Live Weather</h3>
       <div class="weather-grid" id="weather-stations"></div>
     </div>
+    <div class="card">
+      <h3>🏢 Businesses</h3>
+      <div id="business-list"></div>
+    </div>
   </div>
 
   <div class="last-updated" id="last-updated"></div>
-  
 
   <script src="config.js"></script>
-  <script src="app.js" defer></script>
+  <script src="app.js"></script>
 </body>
 </html>
