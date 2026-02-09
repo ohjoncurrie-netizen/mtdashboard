@@ -105,15 +105,12 @@ window.MTApp = {
   toggleUMap: () => window.mtAppInstance.toggleUMap()
 };
 
-// Update the constructor to expose instance globally
-class MTApp {
-  constructor() {
-    this.passMarkers = [];
-    this.weatherMarkers = [];
-    this.uMapLayer = null;
-    this.map = null;
-    window.mtAppInstance = this;  // ADD THIS LINE
-    this.init();
-  }
-  // ... rest of your class unchanged
-}
+// FIXED: No more ReferenceErrors
+document.addEventListener('DOMContentLoaded', () => {
+  window.mtAppInstance = new MTApp();
+  
+  // Set up button handlers AFTER app is ready
+  document.getElementById('refresh-btn').onclick = () => window.mtAppInstance.refreshData();
+  document.getElementById('umap-btn').onclick = () => window.mtAppInstance.toggleUMap();
+  document.getElementById('theme-btn').onclick = () => window.mtAppInstance.toggleTheme();
+});

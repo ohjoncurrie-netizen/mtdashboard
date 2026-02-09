@@ -42,3 +42,21 @@ async function fetchSimpleMontanaUMap() {
     return null;
   }
 }
+// Simple Montana uMap fetch function
+window.fetchSimpleMontanaUMap = async function() {
+  try {
+    const mapData = await fetch(`https://umap.openstreetmap.fr/en/map/simple-montana_1357058/geojson/`).then(r => r.json());
+    const fullData = { type: 'FeatureCollection', features: [] };
+    
+    // Fetch layers (simplified for your map)
+    if (mapData.datalayers && mapData.datalayers.length > 0) {
+      const layerData = await fetch(`https://umap.openstreetmap.fr${mapData.urls.datalayer_view.replace('{pk}', mapData.datalayers[0].id)}`).then(r => r.json());
+      fullData.features.push(...(layerData.features || []));
+    }
+    
+    return fullData;
+  } catch (e) {
+    console.error('uMap fetch failed:', e);
+    return { type: 'FeatureCollection', features: [] };
+  }
+};
