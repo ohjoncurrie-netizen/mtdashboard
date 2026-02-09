@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>MT Roads & Passes - Map Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Leaflet CSS + JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
@@ -63,7 +62,7 @@
   </header>
 
   <div class="section">
-    <h2>🗺️ Interactive Pass Map</h2>
+    <h2>🗺️ Montana Passes (Locked View)</h2>
     <div id="map"></div>
   </div>
 
@@ -81,48 +80,33 @@
   <div class="last-updated" id="last-updated"></div>
 
   <script>
-    // Leaflet map setup
-    const map = L.map('map').setView([46.6, -110.0], 6); // Montana center
+    // Montana boundary bounds: SW to NE corners
+    const MT_BOUNDS = [
+      [44.35, -116.05],  // Southwest corner
+      [49.00, -104.04]   // Northeast corner  
+    ];
+
+    // Leaflet map with Montana-only zoom restriction
+    const map = L.map('map', {
+      minZoom: 6,
+      maxZoom: 12,
+      maxBounds: MT_BOUNDS,
+      maxBoundsViscosity: 1.0  // Rubber band effect when hitting boundary
+    }).setView([46.6, -110.0], 7);  // Montana center, perfect zoom
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
+      attribution: '© OpenStreetMap contributors | MT Roads Dashboard',
+      minZoom: 6,
+      maxZoom: 12
     }).addTo(map);
 
     // Pass data with coordinates
     const CONFIG = {
       passes: [
-        { 
-          name: 'Beartooth Hwy', 
-          lat: 45.0, lng: -109.6,
-          status: 'Seasonally Closed (Oct-Jun)', 
-          chains: 'N/A', 
-          url: 'https://www.mdt.mt.gov/travinfo/beartooth/',
-          cam: 'https://www.mdt.mt.gov/travinfo/cameras/beartooth.html'
-        },
-        { 
-          name: 'Marias Pass', 
-          lat: 48.5, lng: -113.7,
-          status: 'Open - Dry', 
-          chains: 'None', 
-          url: 'https://www.mdt.mt.gov/travinfo/',
-          cam: 'https://www.mdt.mt.gov/travinfo/cameras/marias.html'
-        },
-        { 
-          name: 'Lookout Pass', 
-          lat: 47.0, lng: -115.7,
-          status: 'Open - Chains Required', 
-          chains: 'Vehicles w/o snow tires/chains', 
-          url: 'https://www.mdt.mt.gov/travinfo/',
-          cam: 'https://www.mdt.mt.gov/travinfo/cameras/lookout.html'
-        },
-        { 
-          name: 'Rogers Pass', 
-          lat: 47.2, lng: -112.9,
-          status: 'Open - Icy Patches', 
-          chains: 'None', 
-          url: 'https://www.mdt.mt.gov/travinfo/',
-          cam: 'https://www.mdt.mt.gov/travinfo/cameras/rogers.html'
-        }
+        { name: 'Beartooth Hwy', lat: 45.0, lng: -109.6, status: 'Seasonally Closed (Oct-Jun)', chains: 'N/A', url: 'https://www.mdt.mt.gov/travinfo/beartooth/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/beartooth.html' },
+        { name: 'Marias Pass', lat: 48.5, lng: -113.7, status: 'Open - Dry', chains: 'None', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/marias.html' },
+        { name: 'Lookout Pass', lat: 47.0, lng: -115.7, status: 'Open - Chains Required', chains: 'Vehicles w/o snow tires/chains', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/lookout.html' },
+        { name: 'Rogers Pass', lat: 47.2, lng: -112.9, status: 'Open - Icy Patches', chains: 'None', url: 'https://www.mdt.mt.gov/travinfo/', cam: 'https://www.mdt.mt.gov/travinfo/cameras/rogers.html' }
       ],
       weatherStations: [
         { id: 'BZN', lat: 45.78, lng: -111.15, name: 'Bozeman' },
@@ -136,25 +120,26 @@
     let weatherMarkers = [];
 
     function addPassMarkers() {
-      // Clear existing markers
       passMarkers.forEach(marker => map.removeLayer(marker));
       passMarkers = [];
       
-      CONFIG.passes.forEach((pass, i) => {
+      CONFIG.passes.forEach((pass) => {
         const statusClass = pass.status.includes('Open') ? 'open' : pass.status.includes('Closed') ? 'closed' : 'chains';
+        const color = statusClass === 'open' ? '#0f0' : statusClass === 'closed' ? '#f00' : '#ffaa00';
+        
         const marker = L.marker([pass.lat, pass.lng], {
           icon: L.divIcon({
             className: `pass-marker ${statusClass}`,
-            html: `<div style="background: ${statusClass === 'open' ? '#0f0' : statusClass === 'closed' ? '#f00' : '#ffaa00'}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px currentColor;"></div>`,
+            html: `<div style="background: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px ${color};"></div>`,
             iconSize: [26, 26], iconAnchor: [13, 13]
           })
         }).addTo(map)
         .bindPopup(`
-          <b>${pass.name}</b><br>
+          <b>🏔️ ${pass.name}</b><br>
           <span class="status ${statusClass}">${pass.status}</span><br>
           Chains: ${pass.chains}<br>
-          <a href="${pass.url}" target="_blank">MDT →</a> | 
-          <a href="${pass.cam}" target="_blank">📷 Cam</a>
+          <a href="${pass.url}" target="_blank" class="mdt-link">MDT Report →</a><br>
+          <a href="${pass.cam}" target="_blank" class="mdt-link">📷 Live Cam →</a>
         `);
         
         passMarkers.push(marker);
@@ -179,7 +164,7 @@
             })
           }).addTo(map)
           .bindPopup(`
-            <b>${station.name} (${station.id})</b><br>
+            <b>🌤️ ${station.name} (${station.id})</b><br>
             ${temp}°F | ${(stationData.wind_speed_mph || 0).toFixed(1)}mph<br>
             Precip: ${(stationData.precip_in || 0).toFixed(2)}"
           `);
@@ -243,7 +228,10 @@
       html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
     }
 
-    // Initialize
+    // Lock map to Montana + initialize
+    map.setMaxBounds(MT_BOUNDS);
+    map.fitBounds(MT_BOUNDS, { padding: [20, 20], maxZoom: 8 });
+    
     addPassMarkers();
     renderPassList();
     fetchAllData();
