@@ -65,6 +65,10 @@ class MTApp {
     // Setup event listeners
     this.setupEventListeners();
     
+    // Setup authentication
+    this.setupAuthListeners();
+    this.updateAuthUI(null);
+    
     // Populate county dropdown in business form
     this.populateCountyDropdown();
     
@@ -1496,6 +1500,8 @@ class MTApp {
     } else if (tabName === 'events') {
       this.populateEventCountyDropdown();
       this.loadEventList();
+    } else if (tabName === 'community-awards') {
+      this.setupCommunityAwardsTab();
     }
   }
 
@@ -2962,7 +2968,554 @@ class MTApp {
     }, {});
   }
 
-}
+  // ============================================
+  // AUTHENTICATION & USER MANAGEMENT
+  // ============================================
+
+  setupAuthListeners() {
+    // Sign in / Register buttons
+    document.getElementById('auth-signin-btn')?.addEventListener('click', () => this.showAuthModal('signin'));
+    document.getElementById('auth-register-btn')?.addEventListener('click', () => this.showAuthModal('register'));
+    document.getElementById('auth-close-btn')?.addEventListener('click', () => this.closeAuthModal());
+
+    // Auth tab navigation
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => this.switchAuthTab(e.target.dataset.authTab));
+    });
+
+    // Tab navigation links
+    document.getElementById('auth-goto-register')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.switchAuthTab('register');
+    });
+    document.getElementById('auth-goto-signin')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.switchAuthTab('signin');
+    });
+    document.getElementById('auth-goto-signin2')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.switchAuthTab('signin');
+    });
+    document.getElementById('auth-goto-forgot')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.switchAuthTab('forgot');
+    });
+
+    // Forms
+    document.getElementById('signin-form')?.addEventListener('submit', (e) => this.handleSignIn(e));
+    document.getElementById('register-form')?.addEventListener('submit', (e) => this.handleRegister(e));
+    document.getElementById('forgot-form')?.addEventListener('submit', (e) => this.handleForgotPassword(e));
+
+    // Avatar picker
+    document.querySelectorAll('#avatar-picker .avatar-option').forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        document.querySelectorAll('#avatar-picker .avatar-option').forEach(o => o.classList.remove('selected'));
+        e.target.classList.add('selected');
+        document.getElementById('register-avatar').value = e.target.dataset.emoji;
+      });
+    });
+
+    // Profile button
+    document.getElementById('user-profile-btn')?.addEventListener('click', () => this.showProfileModal());
+    document.getElementById('profile-close-btn')?.addEventListener('click', () => this.closeProfileModal());
+    document.getElementById('user-signout-btn')?.addEventListener('click', () => this.handleSignOut());
+
+    // Profile settings form
+    document.getElementById('profile-settings-form')?.addEventListener('submit', (e) => this.handleProfileUpdate(e));
+
+    // Profile avatar picker
+    document.querySelectorAll('#profile-avatar-picker .avatar-option').forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        document.querySelectorAll('#profile-avatar-picker .avatar-option').forEach(o => o.classList.remove('selected'));
+        e.target.classList.add('selected');
+        document.getElementById('profile-edit-avatar').value = e.target.dataset.emoji;
+      });
+    });
+
+    // Awards page
+    document.getElementById('awards-btn')?.addEventListener('click', () => this.showAwardsPage());
+    document.getElementById('awards-page-close-btn')?.addEventListener('click', () => this.closeAwardsPage());
+
+    // Auth state listener
+    if (this.ds && this.ds.onAuthChange) {
+      this.ds.onAuthChange((user) => {
+        this.updateAuthUI(user);
+      });
+    }
+  }
+
+  showAuthModal(tab = 'signin') {
+    const authSection = document.getElementById('auth-section');
+    if (authSection) {
+      authSection.style.display = 'block';
+      this.switchAuthTab(tab);
+    }
+  }
+
+  closeAuthModal() {
+    const authSection = document.getElementById('auth-section');
+    if (authSection) authSection.style.display = 'none';
+  }
+
+  switchAuthTab(tabName) {
+    document.querySelectorAll('.auth-tab-content').forEach(tab => tab.style.display = 'none');
+    document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
+    
+    const content = document.getElementById(`auth-tab-${tabName}`);
+    const tab = document.querySelector(`.auth-tab[data-auth-tab="${tabName}"]`);
+    if (content) content.style.display = 'block';
+    if (tab) tab.classList.add('active');
+  }
+
+  async handleSignIn(e) {
+    e.preventDefault();
+    const email = document.getElementById('signin-email').value.trim();
+    const password = document.getElementById('signin-password').value.trim();
+    const errorEl = document.getElementById('signin-error');
+
+    errorEl.style.display = 'none';
+
+    if (!email || !password) {
+      errorEl.textContent = 'Please fill in all fields';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    const result = await this.ds.login(email, password);
+    if (result.success) {
+      // Store current user
+      localStorage.setItem('currentUser', JSON.stringify(result.user));
+      this.closeAuthModal();
+      this.showNotification('✅ Signed in successfully!', 'success');
+      this.updateAuthUI(result.user);
+      e.target.reset();
+    } else {
+      errorEl.textContent = result.error || 'Sign in failed';
+      errorEl.style.display = 'block';
+    }
+  }
+
+  async handleRegister(e) {
+    e.preventDefault();
+    const name = document.getElementById('register-name').value.trim();
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value.trim();
+    const confirm = document.getElementById('register-confirm').value.trim();
+    const avatar = document.getElementById('register-avatar').value;
+    const errorEl = document.getElementById('register-error');
+
+    errorEl.style.display = 'none';
+
+    if (!name || !email || !password) {
+      errorEl.textContent = 'Please fill in all required fields';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    if (password !== confirm) {
+      errorEl.textContent = 'Passwords do not match';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    if (password.length < 6) {
+      errorEl.textContent = 'Password must be at least 6 characters';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    const result = await this.ds.register(email, password, name);
+    if (result.success) {
+      // Store member profile
+      localStorage.setItem('currentUser', JSON.stringify({ email, displayName: name, uid: result.user.uid || email }));
+      
+      // Create/update member profile entry
+      const profiles = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      profiles[name] = {
+        name: name,
+        email: email,
+        totalPoints: 0,
+        postCount: 0,
+        helpfulCount: 0,
+        awards: [],
+        avatarEmoji: avatar,
+        bio: '',
+        joinedAt: new Date().toISOString(),
+        role: 'member'
+      };
+      localStorage.setItem('memberProfiles', JSON.stringify(profiles));
+
+      this.closeAuthModal();
+      this.showNotification(`🎉 Welcome to Montana Explorer, ${name}!`, 'success');
+      this.updateAuthUI(result.user);
+      e.target.reset();
+    } else {
+      errorEl.textContent = result.error || 'Registration failed';
+      errorEl.style.display = 'block';
+    }
+  }
+
+  async handleForgotPassword(e) {
+    e.preventDefault();
+    const email = document.getElementById('forgot-email').value.trim();
+    const errorEl = document.getElementById('forgot-error');
+    const successEl = document.getElementById('forgot-success');
+
+    errorEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    if (!email) {
+      errorEl.textContent = 'Please enter your email address';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    const result = await this.ds.resetPassword(email);
+    if (result.success) {
+      successEl.textContent = result.message || '✅ Password reset email sent!';
+      successEl.style.display = 'block';
+      e.target.reset();
+      setTimeout(() => {
+        this.switchAuthTab('signin');
+      }, 3000);
+    } else {
+      errorEl.textContent = result.error || 'Password reset failed';
+      errorEl.style.display = 'block';
+    }
+  }
+
+  async handleSignOut() {
+    await this.ds.logout();
+    localStorage.removeItem('currentUser');
+    this.updateAuthUI(null);
+    this.closeProfileModal();
+    this.showNotification('✅ Signed out successfully', 'success');
+  }
+
+  updateAuthUI(user) {
+    const authNav = document.getElementById('auth-nav');
+    const userNav = document.getElementById('user-nav');
+
+    if (user && (user.email || user.displayName)) {
+      // Show user nav
+      if (authNav) authNav.style.display = 'none';
+      if (userNav) {
+        userNav.style.display = 'flex';
+        const displayName = user.displayName || user.email?.split('@')[0] || 'User';
+        const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+        const member = Object.values(members).find(m => m.email === user.email || m.name === displayName);
+        const avatar = member?.avatarEmoji || '👤';
+        document.getElementById('user-display-name').textContent = displayName;
+        document.getElementById('user-avatar-emoji').textContent = avatar;
+      }
+      this.currentUser = { email: user.email, displayName: user.displayName || displayName, uid: user.uid };
+    } else {
+      // Show auth nav
+      if (authNav) authNav.style.display = 'flex';
+      if (userNav) userNav.style.display = 'none';
+      this.currentUser = null;
+    }
+  }
+
+  showProfileModal() {
+    const profileSection = document.getElementById('profile-section');
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const displayName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Member';
+    
+    const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+    const member = members[displayName] || Object.values(members).find(m => m.email === currentUser.email);
+
+    if (profileSection && member) {
+      profileSection.style.display = 'block';
+      
+      // Load profile data
+      document.getElementById('profile-avatar-display').textContent = member.avatarEmoji || '👤';
+      document.getElementById('profile-display-name').textContent = member.name || displayName;
+      document.getElementById('profile-total-points').textContent = member.totalPoints || 0;
+      document.getElementById('profile-post-count').textContent = member.postCount || 0;
+      document.getElementById('profile-award-count').textContent = (member.awards || []).length;
+
+      // Update rank
+      document.getElementById('profile-rank').textContent = this.getMemberRank(displayName);
+
+      // Load form
+      document.getElementById('profile-edit-name').value = member.name || '';
+      document.getElementById('profile-edit-bio').value = member.bio || '';
+      document.getElementById('profile-edit-avatar').value = member.avatarEmoji || '👤';
+      document.getElementById('profile-show-leaderboard').checked = member.settings?.showOnLeaderboard ?? true;
+      document.getElementById('profile-public-profile').checked = member.settings?.publicProfile ?? true;
+
+      // Update avatar picker
+      document.querySelectorAll('#profile-avatar-picker .avatar-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.dataset.emoji === (member.avatarEmoji || '👤'));
+      });
+
+      // Render awards
+      this.renderMemberAwards(member);
+    }
+  }
+
+  closeProfileModal() {
+    const profileSection = document.getElementById('profile-section');
+    if (profileSection) profileSection.style.display = 'none';
+  }
+
+  async handleProfileUpdate(e) {
+    e.preventDefault();
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const displayName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Member';
+    const newName = document.getElementById('profile-edit-name').value.trim() || displayName;
+    const bio = document.getElementById('profile-edit-bio').value.trim();
+    const avatar = document.getElementById('profile-edit-avatar').value;
+    const showLeaderboard = document.getElementById('profile-show-leaderboard').checked;
+    const publicProfile = document.getElementById('profile-public-profile').checked;
+
+    const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+    const oldKey = Object.keys(members).find(k => members[k].email === currentUser.email);
+
+    if (oldKey && oldKey !== newName) {
+      delete members[oldKey];
+    }
+
+    members[newName] = {
+      ...members[newName],
+      name: newName,
+      bio: bio,
+      avatarEmoji: avatar,
+      settings: {
+        showOnLeaderboard: showLeaderboard,
+        publicProfile: publicProfile,
+        emailNotifications: members[newName]?.settings?.emailNotifications ?? true
+      }
+    };
+
+    localStorage.setItem('memberProfiles', JSON.stringify(members));
+
+    // Update current user
+    currentUser.displayName = newName;
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+    this.showNotification('✅ Profile updated successfully!', 'success');
+    this.updateAuthUI(currentUser);
+  }
+
+  renderMemberAwards(member) {
+    const awardsGrid = document.getElementById('profile-awards-grid');
+    const awards = member.awards || [];
+
+    if (awards.length === 0) {
+      awardsGrid.innerHTML = '<p class="empty-state">No awards earned yet. Start contributing!</p>';
+      return;
+    }
+
+    awardsGrid.innerHTML = awards.map(awardKey => {
+      const award = AWARDS[awardKey];
+      if (!award) return '';
+      return `
+        <div class="award-badge-large" title="${award.name}">
+          <span class="award-badge-icon">${award.icon}</span>
+          <div class="award-badge-info">
+            <strong>${award.name}</strong>
+            <p>${award.description}</p>
+            <span class="award-badge-points">+${award.points} points</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  showAwardsPage() {
+    const awardsSection = document.getElementById('awards-page-section');
+    if (awardsSection) {
+      awardsSection.style.display = 'block';
+      this.renderTopLeaderboard();
+      this.renderAwardsCatalog();
+    }
+  }
+
+  closeAwardsPage() {
+    const awardsSection = document.getElementById('awards-page-section');
+    if (awardsSection) awardsSection.style.display = 'none';
+  }
+
+  async renderTopLeaderboard() {
+    const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+    const topMembers = Object.entries(members)
+      .map(([key, m]) => ({ key, ...m }))
+      .filter(m => m.settings?.showOnLeaderboard !== false)
+      .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
+      .slice(0, 20);
+
+    // Top 3 Podium
+    const podiumHtml = topMembers.slice(0, 3).map((member, idx) => {
+      const medals = ['🥇', '🥈', '🥉'];
+      return `
+        <div class="podium-position podium-${idx + 1}">
+          <div class="podium-medal">${medals[idx]}</div>
+          <div class="podium-avatar">${member.avatarEmoji || '👤'}</div>
+          <div class="podium-name">#${idx + 1} ${this.escapeHtml(member.name)}</div>
+          <div class="podium-points">${member.totalPoints} points</div>
+        </div>
+      `;
+    }).join('');
+
+    const podium = document.getElementById('top3-podium');
+    if (podium) podium.innerHTML = podiumHtml;
+
+    // Full leaderboard (4-20)
+    const leaderboardHtml = topMembers.slice(3, 20).map((member, idx) => `
+      <div class="leaderboard-row">
+        <span class="lb-rank">#${idx + 4}</span>
+        <span class="lb-avatar">${member.avatarEmoji || '👤'}</span>
+        <span class="lb-name">${this.escapeHtml(member.name)}</span>
+        <span class="lb-awards">${(member.awards || []).length} 🎖️</span>
+        <span class="lb-points">${member.totalPoints} pts</span>
+      </div>
+    `).join('');
+
+    const leaderboard = document.getElementById('full-leaderboard');
+    if (leaderboard) {
+      leaderboard.innerHTML = leaderboardHtml || '<p class="empty-state">No members on leaderboard yet</p>';
+    }
+  }
+
+  renderAwardsCatalog() {
+    const catalogHtml = Object.entries(AWARDS).map(([key, award]) => `
+      <div class="award-catalog-item">
+        <div class="award-catalog-icon">${award.icon}</div>
+        <div class="award-catalog-content">
+          <h4>${award.name}</h4>
+          <p>${award.description}</p>
+          <div class="award-catalog-meta">
+            <span class="award-catalog-points">+${award.points} pts</span>
+            <span class="award-catalog-category">${award.category}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    const catalog = document.getElementById('awards-catalog');
+    if (catalog) catalog.innerHTML = catalogHtml;
+  }
+
+  // ============================================
+  // ADMIN: COMMUNITY AWARDS MANAGEMENT
+  // ============================================
+
+  setupCommunityAwardsTab() {
+    document.getElementById('grant-award-btn')?.addEventListener('click', () => this.grantCommunityAward());
+    document.getElementById('award-member-select')?.addEventListener('change', (e) => this.onMemberSelected(e.target.value));
+    document.getElementById('award-type-select')?.addEventListener('change', (e) => this.onAwardSelected(e.target.value));
+    document.getElementById('admin-member-search')?.addEventListener('input', (e) => this.searchAdminMembers(e.target.value));
+
+    // Load award types
+    const awardSelect = document.getElementById('award-type-select');
+    if (awardSelect) {
+      Object.entries(AWARDS).forEach(([key, award]) => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = `${award.icon} ${award.name} (+${award.points} pts)`;
+        awardSelect.appendChild(option);
+      });
+    }
+
+    // Load members
+    this.loadAdminMembers();
+  }
+
+  loadAdminMembers() {
+    const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+   const memberSelect = document.getElementById('award-member-select');
+    
+    if (memberSelect) {
+      // Clear existing options (keep placeholder)
+      memberSelect.innerHTML = '<option value="">Choose a member...</option>';
+      
+      Object.entries(members).forEach(([key, member]) => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = `${member.avatarEmoji || '👤'} ${member.name || key} (${member.totalPoints || 0} pts)`;
+        memberSelect.appendChild(option);
+      });
+    }
+
+    this.renderAdminMemberList(members);
+  }
+
+  renderAdminMemberList(members, search = '') {
+    const list = document.getElementById('admin-member-list');
+    if (!list) return;
+
+    const filtered = Object.entries(members)
+      .filter(([k, m]) => !search || m.name?.toLowerCase().includes(search) || k.toLowerCase().includes(search))
+      .sort((a, b) => (b[1].totalPoints || 0) - (a[1].totalPoints || 0));
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<p class="empty-state">No members found</p>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(([key, member]) => `
+      <div class="admin-member-card">
+        <div class="admin-member-header">
+          <span class="admin-member-avatar">${member.avatarEmoji || '👤'} ${this.escapeHtml(member.name || key)}</span>
+          <span class="admin-member-points">${member.totalPoints || 0} pts</span>
+        </div>
+        <div class="admin-member-awards">
+          ${(member.awards || []).slice(0, 5).map(awardKey => {
+            const award = AWARDS[awardKey];
+            return award ? `<span class="admin-member-award" title="${award.name}">${award.icon}</span>` : '';
+          }).join('')}
+          ${(member.awards || []).length > 5 ? `<span class="admin-member-more">+${(member.awards || []).length - 5}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  searchAdminMembers(term) {
+    const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+    this.renderAdminMemberList(members, term);
+  }
+
+  onMemberSelected(memberKey) {
+    const grantBtn = document.getElementById('grant-award-btn');
+    if (grantBtn) grantBtn.disabled = !memberKey;
+  }
+
+  onAwardSelected(awardKey) {
+    const preview = document.getElementById('award-preview');
+    const award = AWARDS[awardKey];
+
+    if (!award || !preview) return;
+
+    document.getElementById('award-preview-icon').textContent = award.icon;
+    document.getElementById('award-preview-name').textContent = award.name;
+    document.getElementById('award-preview-desc').textContent = award.description;
+    document.getElementById('award-preview-points').textContent = `+${award.points} points`;
+    preview.style.display = 'block';
+  }
+
+  async grantCommunityAward() {
+    const memberKey = document.getElementById('award-member-select').value;
+    const awardKey = document.getElementById('award-type-select').value;
+
+    if (!memberKey || !awardKey) {
+      this.showNotification('❌ Please select a member and award', 'error');
+      return;
+    }
+
+    const result = await this.ds.grantAward(memberKey, awardKey, 'admin');
+    if (result.success) {
+      this.showNotification(`🎉 Award granted to ${memberKey}!`, 'success');
+      this.loadAdminMembers();
+      document.getElementById('award-member-select').value = '';
+      document.getElementById('award-type-select').value = '';
+      document.getElementById('award-preview').style.display = 'none';
+      document.getElementById('grant-award-btn').disabled = true;
+    } else {
+      this.showNotification(result.error || 'Failed to grant award', 'error');
+    }
+  }
 
 // Initialize app when DOM is ready
 let app; // Global reference for inline event handlers

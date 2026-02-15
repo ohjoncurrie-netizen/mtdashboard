@@ -37,14 +37,29 @@ window.MEMBER_PROFILES = JSON.parse(localStorage.getItem('memberProfiles')) || {
 
 // Awards definitions and tracking
 window.AWARDS = {
-  montana_expert: { name: 'Montana Expert', icon: '🏆', points: 100, description: 'Shared 10+ high-quality Montana facts' },
-  helpful_contributor: { name: 'Helpful Contributor', icon: '🤝', points: 50, description: '5+ helpful replies' },
-  wildlife_knowledge: { name: 'Wildlife Whisperer', icon: '🦌', points: 75, description: 'Shared valuable wildlife insights' },
-  history_buff: { name: 'History Buff', icon: '📜', points: 75, description: 'Shared Montana historical knowledge' },
-  trail_advocate: { name: 'Trail Advocate', icon: '🥾', points: 50, description: 'Shared hiking and outdoor knowledge' },
-  community_champion: { name: 'Community Champion', icon: '⭐', points: 150, description: '50+ helpful community contributions' },
-  knowledge_seeker: { name: 'Knowledge Seeker', icon: '🎓', points: 25, description: 'Asked insightful questions' },
-  regional_master: { name: 'Regional Master', icon: '🗺️', points: 100, description: 'Expert knowledge in multiple regions' }
+  montana_expert: { name: 'Montana Expert', icon: '🏆', points: 100, description: 'Shared 10+ high-quality Montana facts', category: 'knowledge' },
+  helpful_contributor: { name: 'Helpful Contributor', icon: '🤝', points: 50, description: '5+ helpful replies', category: 'community' },
+  wildlife_knowledge: { name: 'Wildlife Whisperer', icon: '🦌', points: 75, description: 'Shared valuable wildlife insights', category: 'knowledge' },
+  history_buff: { name: 'History Buff', icon: '📜', points: 75, description: 'Shared Montana historical knowledge', category: 'knowledge' },
+  trail_advocate: { name: 'Trail Advocate', icon: '🥾', points: 50, description: 'Shared hiking and outdoor knowledge', category: 'knowledge' },
+  community_champion: { name: 'Community Champion', icon: '⭐', points: 150, description: '50+ helpful community contributions', category: 'community' },
+  knowledge_seeker: { name: 'Knowledge Seeker', icon: '🎓', points: 25, description: 'Asked insightful questions', category: 'community' },
+  regional_master: { name: 'Regional Master', icon: '🗺️', points: 100, description: 'Expert knowledge in multiple regions', category: 'exploration' },
+  // Quiz & Knowledge Awards
+  quiz_master: { name: 'Quiz Master', icon: '🧠', points: 125, description: 'Aced Montana knowledge quizzes', category: 'quiz' },
+  geography_genius: { name: 'Geography Genius', icon: '🌍', points: 100, description: 'Perfect score on Montana geography quiz', category: 'quiz' },
+  history_scholar: { name: 'History Scholar', icon: '📚', points: 100, description: 'Mastered Montana history quiz', category: 'quiz' },
+  wildlife_expert: { name: 'Wildlife Expert', icon: '🐻', points: 100, description: 'Identified all Montana wildlife species', category: 'quiz' },
+  // Route & Exploration Awards
+  route_explorer: { name: 'Route Explorer', icon: '🛣️', points: 75, description: 'Explored 5+ scenic routes on the map', category: 'exploration' },
+  county_collector: { name: 'County Collector', icon: '📍', points: 125, description: 'Visited and reviewed 10+ county pages', category: 'exploration' },
+  peak_bagger: { name: 'Peak Bagger', icon: '⛰️', points: 100, description: 'Explored all mountain peak layers', category: 'exploration' },
+  trailblazer: { name: 'Trailblazer', icon: '🔥', points: 150, description: 'First to contribute in 3+ categories', category: 'community' },
+  // Helpful & Contribution Awards  
+  first_responder: { name: 'First Responder', icon: '🏅', points: 50, description: 'First helpful reply on 5+ discussions', category: 'community' },
+  storyteller: { name: 'Storyteller', icon: '📖', points: 75, description: 'Shared 5+ detailed local stories', category: 'knowledge' },
+  local_legend: { name: 'Local Legend', icon: '👑', points: 200, description: 'Top contributor with 500+ total points', category: 'prestige' },
+  founding_member: { name: 'Founding Member', icon: '🌟', points: 50, description: 'Among the first 10 registered members', category: 'prestige' }
 };
 
 // Montana cities by county (FIPS code)

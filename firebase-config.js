@@ -39,15 +39,14 @@
 
   // Check if Firebase compat SDK was loaded (added via <script> in index.html)
   try {
-    if (firebaseConfig.apiKey !== "AIzaSyCBILJQHJBRK6LN6x7yF2BwLwiXd80PlJQ" &&
-        typeof firebase !== 'undefined') {
+    if (typeof firebase !== 'undefined' && firebaseConfig.apiKey && firebaseConfig.projectId) {
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
       auth = firebase.auth();
       firebaseReady = true;
       console.log('🔥 Firebase initialized');
-    } else if (firebaseConfig.apiKey === "AIzaSyCBILJQHJBRK6LN6x7yF2BwLwiXd80PlJQ") {
-      console.warn('⚠️ Firebase not configured – using localStorage. Edit firebase-config.js with your credentials.');
+    } else {
+      console.warn('⚠️ Firebase SDK not loaded or config missing – using localStorage.');
     }
   } catch (err) {
     console.warn('⚠️ Firebase init failed, using localStorage:', err.message);
@@ -99,6 +98,162 @@
       }
       localStorage.setItem('adminPassword', newPassword);
       return { success: true };
+    }
+
+    // ── User Registration ──
+    async register(email, password, displayName) {
+      if (this.useFirebase) {
+        try {
+          const cred = await auth.createUserWithEmailAndPassword(email, password);
+          // Update profile with display name
+          await cred.user.updateProfile({ displayName: displayName || email.split('@')[0] });
+          // Create member profile in Firestore
+          await db.collection('members').doc(cred.user.uid).set({
+            email: email,
+            displayName: displayName || email.split('@')[0],
+            bio: '',
+            avatarEmoji: '👤',
+            totalPoints: 0,
+            postCount: 0,
+            helpfulCount: 0,
+            awards: [],
+            joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            settings: {
+              emailNotifications: true,
+              showOnLeaderboard: true,
+              publicProfile: true
+            },
+            role: 'member'
+          });
+          return { success: true, user: cred.user };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      }
+      // localStorage fallback
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      const uid = 'local_' + Date.now();
+      members[displayName || email] = {
+        name: displayName || email,
+        email: email,
+        uid: uid,
+        avatarEmoji: '👤',
+        bio: '',
+        totalPoints: 0,
+        postCount: 0,
+        helpfulCount: 0,
+        awards: [],
+        joinedAt: new Date().toISOString(),
+        settings: { emailNotifications: true, showOnLeaderboard: true, publicProfile: true },
+        role: 'member'
+      };
+      localStorage.setItem('memberProfiles', JSON.stringify(members));
+      localStorage.setItem('currentUser', JSON.stringify({ email, displayName: displayName || email, uid }));
+      return { success: true, user: { email, displayName: displayName || email, uid } };
+    }
+
+    // ── Forgot Password ──
+    async resetPassword(email) {
+      if (this.useFirebase) {
+        try {
+          await auth.sendPasswordResetEmail(email);
+          return { success: true, message: 'Password reset email sent. Check your inbox.' };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      }
+      return { success: false, error: 'Password reset requires Firebase. Contact admin.' };
+    }
+
+    // ── Member Profiles ──
+    async getMemberProfile(uid) {
+      if (this.useFirebase) {
+        try {
+          const snap = await db.collection('members').doc(uid).get();
+          return snap.exists ? { uid: snap.id, ...snap.data() } : null;
+        } catch (err) {
+          console.error('Error fetching member:', err);
+          return null;
+        }
+      }
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      for (const [key, member] of Object.entries(members)) {
+        if (member.uid === uid || key === uid) return { uid: key, ...member };
+      }
+      return null;
+    }
+
+    async saveMemberProfile(uid, data) {
+      if (this.useFirebase) {
+        try {
+          await db.collection('members').doc(uid).set(data, { merge: true });
+        } catch (err) {
+          console.error('Error saving member:', err);
+        }
+      }
+      // Always sync localStorage
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      const key = data.name || data.displayName || uid;
+      members[key] = { ...members[key], ...data, uid };
+      localStorage.setItem('memberProfiles', JSON.stringify(members));
+    }
+
+    async getTopMembers(limit = 20) {
+      if (this.useFirebase) {
+        try {
+          const snap = await db.collection('members')
+            .orderBy('totalPoints', 'desc')
+            .limit(limit)
+            .get();
+          const members = [];
+          snap.forEach(doc => members.push({ uid: doc.id, ...doc.data() }));
+          return members;
+        } catch (err) {
+          console.error('Error fetching top members:', err);
+        }
+      }
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      return Object.entries(members)
+        .map(([key, m]) => ({ uid: key, name: m.name || key, ...m }))
+        .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
+        .slice(0, limit);
+    }
+
+    async grantAward(memberKey, awardKey, grantedBy = 'admin') {
+      if (this.useFirebase) {
+        try {
+          const snap = await db.collection('members').doc(memberKey).get();
+          if (snap.exists) {
+            const data = snap.data();
+            const awards = data.awards || [];
+            if (!awards.includes(awardKey)) {
+              awards.push(awardKey);
+              const bonus = (window.AWARDS && window.AWARDS[awardKey]) ? window.AWARDS[awardKey].points : 0;
+              await db.collection('members').doc(memberKey).update({
+                awards: awards,
+                totalPoints: (data.totalPoints || 0) + bonus
+              });
+            }
+            return { success: true };
+          }
+          return { success: false, error: 'Member not found' };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      }
+      // localStorage fallback
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      if (members[memberKey]) {
+        if (!members[memberKey].awards) members[memberKey].awards = [];
+        if (!members[memberKey].awards.includes(awardKey)) {
+          members[memberKey].awards.push(awardKey);
+          const bonus = (window.AWARDS && window.AWARDS[awardKey]) ? window.AWARDS[awardKey].points : 0;
+          members[memberKey].totalPoints = (members[memberKey].totalPoints || 0) + bonus;
+        }
+        localStorage.setItem('memberProfiles', JSON.stringify(members));
+        return { success: true };
+      }
+      return { success: false, error: 'Member not found' };
     }
 
     getCurrentUser() {
