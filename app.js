@@ -98,12 +98,20 @@ class MTApp {
   }
 
   initMap() {
+    // Montana boundaries (with slight buffer)
+    const montanaBounds = [
+      [44.0, -116.5], // Southwest corner
+      [49.2, -104.0]  // Northeast corner
+    ];
+    
     // Initialize Leaflet map centered on Montana
     this.map = L.map('map', {
       center: [46.8797, -110.3626], // Montana center
       zoom: 7,
       minZoom: 6,
-      maxZoom: 13
+      maxZoom: 13,
+      maxBounds: montanaBounds,
+      maxBoundsViscosity: 1.0 // Makes boundary completely solid (no panning outside)
     });
 
     // Add vintage-styled base layer using ESRI World Topo Map (free and reliable)
