@@ -1,83 +1,287 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MT Roads & Passes - Map Dashboard</title>
+  <title>Montana County Explorer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.awesome-markers@2.0.2/dist/leaflet.awesome-markers.css" />
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.awesome-markers@2.0.2/dist/leaflet.awesome-markers.js"></script>
   <script async defer 
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXY5noMi8eAp2uM9zWOMHYGRC_k_PeRU0&libraries=geometry&callback=initGoogleMaps"
   type="text/javascript"></script>
-
 </head>
 <body>
-  <header>
-    <h1>🗺️ MT Roads & Passes + Business Directory</h1>
-    <div>
-      <button id="refresh-btn">🔄 Refresh</button>
-      <button id="umap-btn">🗺️ Simple MT</button>
-      <button id="business-btn">🏢 Businesses</button>
-      <button id="theme-btn">🌙 Theme</button>
-      <a href="https://511.mt.gov/" target="_blank" class="mdt-link" style="font-size: 1.1rem;">📱 511 Live</a>
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>Montana Explorer</h2>
+      <button class="sidebar-close" id="sidebar-close">&times;</button>
     </div>
-  </header>
+    
+    <nav class="sidebar-nav">
+      <h3>Quick Links</h3>
+      <ul>
+        <li><a href="#map-section" class="sidebar-link">View Map</a></li>
+        <li><a href="#" id="sidebar-admin" class="sidebar-link">Admin Panel</a></li>
+        <li><a href="#" id="sidebar-business" class="sidebar-link">Business Directory</a></li>
+        <li><a href="https://511.mt.gov/" target="_blank" class="sidebar-link">Road Conditions</a></li>
+        <li><a href="https://visitmt.com/" target="_blank" class="sidebar-link">Visit Montana</a></li>
+        <li><a href="https://fwp.mt.gov/" target="_blank" class="sidebar-link">Fish, Wildlife & Parks</a></li>
+      </ul>
+    </nav>
+    
+    <div class="sidebar-facts">
+      <h3>🏔️ Montana Facts</h3>
+      <div class="fact-item">
+        <h4>📍 The Treasure State</h4>
+        <p>Montana's nickname comes from its rich mineral reserves, including gold, silver, and copper.</p>
+      </div>
+      <div class="fact-item">
+        <h4>🌄 Big Sky Country</h4>
+        <p>Montana is the 4th largest state with 147,040 square miles of stunning landscapes.</p>
+      </div>
+      <div class="fact-item">
+        <h4>🏛️ Capital City</h4>
+        <p>Helena is the state capital, while Billings is the largest city.</p>
+      </div>
+      <div class="fact-item">
+        <h4>🗻 Glacier National Park</h4>
+        <p>Home to over 700 miles of hiking trails and 26 glaciers (as of 2015).</p>
+      </div>
+      <div class="fact-item">
+        <h4>🦌 Wildlife Paradise</h4>
+        <p>Montana has more cattle than people and is home to grizzly bears, wolves, elk, and bison.</p>
+      </div>
+      <div class="fact-item">
+        <h4>⭐ Statehood</h4>
+        <p>Montana became the 41st state on November 8, 1889.</p>
+      </div>
+      <div class="fact-item">
+        <h4>🌾 Agriculture</h4>
+        <p>Montana is a leading producer of wheat, barley, and lentils in the United States.</p>
+      </div>
+      <div class="fact-item">
+        <h4>🎬 Film Location</h4>
+        <p>Many movies filmed here including "A River Runs Through It" and "The Revenant".</p>
+      </div>
+    </div>
+  </aside>
+  
+  <!-- Sidebar Overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  
+  <div class="container">
+    <header>
+      <div class="header-content">
+        <h1>Montana County Explorer</h1>
+        <p class="subtitle">Interactive Historical Map</p>
+      </div>
+      <nav class="header-nav">
+        <button id="sidebar-toggle" class="nav-btn menu-btn">☰ Menu</button>
+        <button id="umap-btn" class="nav-btn">Toggle Counties</button>
+        <button id="business-btn" class="nav-btn">Business Directory</button>
+        <button id="admin-btn" class="nav-btn">Admin Panel</button>
+        <a href="https://511.mt.gov/" target="_blank" class="nav-link">Road Conditions</a>
+      </nav>
+    </header>
 
-  <!-- NEW: Business Submission Form -->
-  <div class="section" id="business-form-section" style="display: none;">
-    <h2>🏢 Add Your Business ($5/month)</h2>
-    <div class="card">
-      <form id="business-form">
-        <div class="form-group">
-          <label>Business Name</label>
-          <input type="text" id="biz-name" required>
+    <main>
+      <!-- Admin Panel -->
+      <section class="admin-section" id="admin-section" style="display: none;">
+        <!-- Login Screen -->
+        <div class="card admin-login" id="admin-login">
+          <h2>Admin Login</h2>
+          <form id="admin-login-form">
+            <div class="form-group">
+              <label>Password</label>
+              <input type="password" id="admin-password" placeholder="Enter admin password" required>
+            </div>
+            <button type="submit" class="submit-btn">Login</button>
+            <p class="form-note">Default password: admin123</p>
+          </form>
         </div>
-        <div class="form-group">
-          <label>Address/Location</label>
-          <input type="text" id="biz-address" placeholder="123 Main St, Bozeman" required>
+
+        <!-- Admin Dashboard -->
+        <div class="admin-dashboard" id="admin-dashboard" style="display: none;">
+          <div class="card">
+            <div class="admin-header">
+              <h2>County Editor</h2>
+              <div>
+                <button id="admin-logout-btn" class="nav-btn">Logout</button>
+                <button id="admin-settings-btn" class="nav-btn">Settings</button>
+              </div>
+            </div>
+            
+            <div class="admin-tabs">
+              <button class="admin-tab active" data-tab="counties">Edit Counties</button>
+              <button class="admin-tab" data-tab="settings">Settings</button>
+            </div>
+
+            <!-- Counties Tab -->
+            <div class="admin-tab-content" id="tab-counties">
+              <div class="admin-search">
+                <input type="text" id="county-search" placeholder="Search counties..." class="search-input">
+              </div>
+              
+              <div class="county-list" id="county-list">
+                <p class="empty-state">Loading counties...</p>
+              </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="admin-tab-content" id="tab-settings" style="display: none;">
+              <form id="admin-settings-form">
+                <div class="form-group">
+                  <label>Change Admin Password</label>
+                  <input type="password" id="new-password" placeholder="New password">
+                </div>
+                <div class="form-group">
+                  <label>Confirm Password</label>
+                  <input type="password" id="confirm-password" placeholder="Confirm password">
+                </div>
+                <button type="submit" class="submit-btn">Update Password</button>
+              </form>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Phone</label>
-          <input type="tel" id="biz-phone">
+
+        <!-- County Edit Modal -->
+        <div class="modal" id="county-edit-modal" style="display: none;">
+          <div class="modal-content card">
+            <div class="modal-header">
+              <h3 id="modal-county-name">Edit County</h3>
+              <button class="modal-close" id="modal-close-btn">&times;</button>
+            </div>
+            <form id="county-edit-form">
+              <input type="hidden" id="edit-county-id">
+              
+              <div class="form-group">
+                <label>County Name (Read-only)</label>
+                <input type="text" id="edit-county-display-name" disabled>
+              </div>
+              
+              <div class="form-group">
+                <label>Description</label>
+                <textarea id="edit-county-description" rows="4" placeholder="Add a description about this county..."></textarea>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Population</label>
+                  <input type="text" id="edit-county-population" placeholder="e.g., 45,000">
+                </div>
+                <div class="form-group">
+                  <label>County Seat</label>
+                  <input type="text" id="edit-county-seat" placeholder="e.g., Bozeman">
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Established Year</label>
+                  <input type="text" id="edit-county-established" placeholder="e.g., 1864">
+                </div>
+                <div class="form-group">
+                  <label>Area (sq mi)</label>
+                  <input type="text" id="edit-county-area" placeholder="e.g., 2,500">
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label>Website URL</label>
+                <input type="url" id="edit-county-website" placeholder="https://example.com">
+              </div>
+              
+              <div class="form-group">
+                <label>Points of Interest (comma-separated)</label>
+                <input type="text" id="edit-county-poi" placeholder="Yellowstone, Glacier Park, etc.">
+              </div>
+              
+              <div class="modal-footer">
+                <button type="button" class="nav-btn" id="modal-cancel-btn">Cancel</button>
+                <button type="submit" class="submit-btn">Save Changes</button>
+              </div>
+            </form>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Website</label>
-          <input type="url" id="biz-website">
+      </section>
+
+      <!-- Business Submission Form -->
+      <section class="form-section" id="business-form-section" style="display: none;">
+        <div class="card form-card">
+          <h2>Business Directory Listing</h2>
+          <form id="business-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Business Name</label>
+                <input type="text" id="biz-name" required>
+              </div>
+              <div class="form-group">
+                <label>Address</label>
+                <input type="text" id="biz-address" placeholder="123 Main St, Bozeman, MT" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Phone</label>
+                <input type="tel" id="biz-phone" placeholder="(406) 555-0123">
+              </div>
+              <div class="form-group">
+                <label>Website</label>
+                <input type="url" id="biz-website" placeholder="https://example.com">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Icon</label>
+              <input type="text" id="biz-icon" placeholder="🏪" maxlength="2">
+            </div>
+            <button type="submit" class="submit-btn">Add Business Listing</button>
+            <p class="form-note">$5/month subscription • Cancel anytime</p>
+          </form>
         </div>
-        <div class="form-group">
-          <label>Icon (🏪🍺🏔️🍔 etc.)</label>
-          <input type="text" id="biz-icon" placeholder="🏪" maxlength="2">
+      </section>
+
+      <!-- Map Section -->
+      <section class="map-section" id="map-section">
+        <div class="map-header">
+          <h2>Interactive County Map</h2>
+          <p class="map-description">Click any county to view details</p>
         </div>
-        <button type="submit">💳 Subscribe & Add ($5/month)</button>
-      </form>
-      <p class="small">Payment via Stripe. Auto-renews monthly. Cancel anytime.</p>
-    </div>
+        <div id="map"></div>
+      </section>
+
+      <!-- Information Grid -->
+      <section class="info-grid" id="info-section" style="display: none;">
+        <div class="card">
+          <h3>Mountain Passes</h3>
+          <div id="passes-list" class="content-list">
+            <p class="empty-state">No data available</p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Weather Stations</h3>
+          <div id="weather-stations" class="content-list">
+            <p class="empty-state">No data available</p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Local Businesses</h3>
+          <div id="business-list" class="content-list">
+            <p class="empty-state">No listings yet</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>&copy; 2026 Montana County Explorer</p>
+      <p class="last-updated" id="last-updated"></p>
+    </footer>
   </div>
-
-  <div class="section">
-    <h2>🗺️ Montana Passes (Locked View)</h2>
-    <div id="map"></div>
-  </div>
-
-  <div class="section grid">
-    <div class="card">
-      <h3>🏔️ Pass Status</h3>
-      <div id="passes-list"></div>
-    </div>
-    <div class="card">
-      <h3>🌤️ Live Weather</h3>
-      <div class="weather-grid" id="weather-stations"></div>
-    </div>
-    <div class="card">
-      <h3>🏢 Businesses</h3>
-      <div id="business-list"></div>
-    </div>
-  </div>
-
-  <div class="last-updated" id="last-updated"></div>
 
   <script src="config.js"></script>
   <script src="app.js"></script>

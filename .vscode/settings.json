@@ -1,0 +1,5 @@
+{
+    "chat.agentSessionProjection.enabled": true,
+    "chat.checkpoints.showFileChanges": true,
+    "chat.customAgentInSubagent.enabled": true
+}

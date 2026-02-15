@@ -15,6 +15,15 @@ window.BUSINESSES = JSON.parse(localStorage.getItem('mtBusinesses')) || [
   }
 ];
 
+// County data storage - editable via admin panel
+window.COUNTY_DATA = JSON.parse(localStorage.getItem('countyData')) || {};
+
+// Admin credentials (stored in localStorage for security)
+window.ADMIN_CONFIG = {
+  password: localStorage.getItem('adminPassword') || 'admin123', // Default password
+  isLoggedIn: false
+};
+
 // Simple Montana uMap fetch function (unchanged)...
 window.fetchSimpleMontanaUMap = async function() {
   try {
