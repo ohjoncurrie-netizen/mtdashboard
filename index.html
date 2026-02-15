@@ -97,8 +97,8 @@
           <button id="directory-btn" class="nav-btn">Browse Counties</button>
           <button id="umap-btn" class="nav-btn">Toggle Counties</button>
           <button id="business-btn" class="nav-btn">Business Directory</button>
+          <button id="discussion-btn" class="nav-btn">💬 Discussion</button>
           <button id="hud-toggle-btn" class="nav-btn">💡 Facts</button>
-          <button id="admin-btn" class="nav-btn nav-btn-primary">Admin Panel</button>
           <a href="https://511.mt.gov/" target="_blank" class="nav-link">Road Conditions</a>
         </nav>
       </div>
@@ -654,6 +654,92 @@
         </div>
       </section>
 
+      <!-- Discussion Board Section -->
+      <section class="discussion-section" id="discussion-section" style="display: none;">
+        <div class="card discussion-card">
+          <div class="discussion-header">
+            <h2>💬 Montana Community Discussion</h2>
+            <p class="discussion-subtitle">Share knowledge, ask questions, earn awards & climb the ranks</p>
+          </div>
+
+          <div class="discussion-layout">
+            <!-- Leaderboard Sidebar -->
+            <aside class="discussion-sidebar">
+              <div class="leaderboard-section">
+                <h3>🏆 Top Members</h3>
+                <div id="leaderboard" class="leaderboard-list">
+                  <p class="empty-state">Loading members...</p>
+                </div>
+              </div>
+              <div class="awards-section">
+                <h3>🎖️ Your Awards</h3>
+                <div id="user-awards" class="awards-display">
+                  <p class="empty-state">Sign in to view awards</p>
+                </div>
+              </div>
+            </aside>
+
+            <!-- Main Discussion Area -->
+            <div class="discussion-main">
+              <!-- Post Creation Form -->
+              <div class="post-form-wrapper card">
+                <h3>Start a Discussion</h3>
+                <form id="discussion-post-form">
+                  <div class="form-group">
+                    <label>Your Name</label>
+                    <input type="text" id="discussion-username" placeholder="Community Member" maxlength="30" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Topic</label>
+                    <input type="text" id="discussion-topic" placeholder="e.g., Best hiking spots in Montana..." maxlength="100" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Message</label>
+                    <textarea id="discussion-message" placeholder="Share your Montana knowledge or ask a question..." rows="4" maxlength="500" required></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label>Category</label>
+                    <select id="discussion-category" required>
+                      <option value="">Select a category...</option>
+                      <option value="wildlife">🦌 Wildlife & Nature</option>
+                      <option value="history">📜 History & Culture</option>
+                      <option value="hiking">🏔️ Hiking & Outdoor</option>
+                      <option value="cities">🏘️ Cities & Towns</option>
+                      <option value="geology">🪨 Geology & Geography</option>
+                      <option value="tips">💡 Local Tips & Advice</option>
+                      <option value="general">🗨️ General Discussion</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="submit-btn">Post Discussion</button>
+                </form>
+              </div>
+
+              <!-- Filter & Search -->
+              <div class="discussion-filters card">
+                <input type="text" id="discussion-search" placeholder="Search discussions..." class="search-input">
+                <div class="filter-buttons">
+                  <button class="filter-btn active" data-filter="all">All</button>
+                  <button class="filter-btn" data-filter="wildlife">Wildlife</button>
+                  <button class="filter-btn" data-filter="history">History</button>
+                  <button class="filter-btn" data-filter="hiking">Hiking</button>
+                  <button class="filter-btn" data-filter="cities">Cities</button>
+                  <button class="filter-btn" data-filter="geology">Geology</button>
+                  <button class="filter-btn" data-filter="tips">Tips</button>
+                </div>
+              </div>
+
+              <!-- Discussions List -->
+              <div id="discussions-list" class="discussions-list">
+                <p class="empty-state">No discussions yet. Be the first to start one!</p>
+              </div>
+
+              <!-- Back Button -->
+              <button id="discussion-close-btn" class="nav-btn" style="width: 100%; margin-top: 1.5rem;">Back to Map</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Map Section -->
       <section class="map-section" id="map-section">
         <div class="map-header">
@@ -759,6 +845,7 @@
     <footer>
       <p>&copy; 2026 Montana County Explorer</p>
       <p class="last-updated" id="last-updated"></p>
+      <button id="admin-btn" class="admin-access-button" title="Admin Panel Access">⚙️</button>
     </footer>
   </div>
 

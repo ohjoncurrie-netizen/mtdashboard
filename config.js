@@ -28,6 +28,25 @@ window.CITY_DATA = JSON.parse(localStorage.getItem('cityData')) || {};
 // createdAt, updatedAt, isActive, featured
 window.EVENTS_DATA = JSON.parse(localStorage.getItem('eventsData')) || [];
 
+// Discussion board data storage
+// Posts array with replies, ratings, and award tracking
+window.DISCUSSION_POSTS = JSON.parse(localStorage.getItem('discussionPosts')) || [];
+
+// Member profiles with ranking and awards
+window.MEMBER_PROFILES = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+
+// Awards definitions and tracking
+window.AWARDS = {
+  montana_expert: { name: 'Montana Expert', icon: '🏆', points: 100, description: 'Shared 10+ high-quality Montana facts' },
+  helpful_contributor: { name: 'Helpful Contributor', icon: '🤝', points: 50, description: '5+ helpful replies' },
+  wildlife_knowledge: { name: 'Wildlife Whisperer', icon: '🦌', points: 75, description: 'Shared valuable wildlife insights' },
+  history_buff: { name: 'History Buff', icon: '📜', points: 75, description: 'Shared Montana historical knowledge' },
+  trail_advocate: { name: 'Trail Advocate', icon: '🥾', points: 50, description: 'Shared hiking and outdoor knowledge' },
+  community_champion: { name: 'Community Champion', icon: '⭐', points: 150, description: '50+ helpful community contributions' },
+  knowledge_seeker: { name: 'Knowledge Seeker', icon: '🎓', points: 25, description: 'Asked insightful questions' },
+  regional_master: { name: 'Regional Master', icon: '🗺️', points: 100, description: 'Expert knowledge in multiple regions' }
+};
+
 // Montana cities by county (FIPS code)
 window.COUNTY_CITIES = {
   '30001': ['Kalispell', 'Whitefish', 'Columbia Falls', 'Bigfork'],
