@@ -1024,7 +1024,11 @@ class MTApp {
         document.getElementById('admin-password').value = '';
         this.loadCountyList();
         if (this.pendingCountyEdit) {
-          this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+          if (this.pendingCountyEdit.isCity) {
+            this.openAdminForCity(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+          } else {
+            this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+          }
           this.pendingCountyEdit = null;
         }
       } else {
@@ -1040,7 +1044,11 @@ class MTApp {
         document.getElementById('admin-password').value = '';
         this.loadCountyList();
         if (this.pendingCountyEdit) {
-          this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+          if (this.pendingCountyEdit.isCity) {
+            this.openAdminForCity(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+          } else {
+            this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+          }
           this.pendingCountyEdit = null;
         }
       } else {
