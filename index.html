@@ -95,11 +95,18 @@
         </div>
         <nav class="header-nav">
           <button id="directory-btn" class="nav-btn">Browse Counties</button>
-          <button id="umap-btn" class="nav-btn">Toggle Counties</button>
           <button id="business-btn" class="nav-btn">Business Directory</button>
           <button id="discussion-btn" class="nav-btn">💬 Discussion</button>
+          <button id="awards-btn" class="nav-btn">🏆 Top 20</button>
           <button id="hud-toggle-btn" class="nav-btn">💡 Facts</button>
-          <a href="https://511.mt.gov/" target="_blank" class="nav-link">Road Conditions</a>
+          <div class="auth-nav" id="auth-nav">
+            <button id="auth-signin-btn" class="nav-btn auth-btn">Sign In</button>
+            <button id="auth-register-btn" class="nav-btn auth-btn accent">Register</button>
+          </div>
+          <div class="user-nav" id="user-nav" style="display: none;">
+            <button id="user-profile-btn" class="nav-btn user-btn"><span id="user-avatar-emoji">👤</span> <span id="user-display-name">Profile</span></button>
+            <button id="user-signout-btn" class="nav-btn">Sign Out</button>
+          </div>
         </nav>
       </div>
     </header>
@@ -222,6 +229,7 @@
               <button class="admin-tab active" data-tab="counties">Edit Counties</button>
               <button class="admin-tab" data-tab="cities">Edit Cities</button>
               <button class="admin-tab" data-tab="events">Events</button>
+              <button class="admin-tab" data-tab="community-awards">Community Awards</button>
               <button class="admin-tab" data-tab="users">Manage Users</button>
               <button class="admin-tab" data-tab="settings">Settings</button>
             </div>
@@ -282,6 +290,50 @@
               </div>
               <div class="event-list" id="event-list">
                 <p class="empty-state">No events yet. Click "+ Add Event" to create one.</p>
+              </div>
+            </div>
+
+            <!-- Community Awards Tab -->
+            <div class="admin-tab-content" id="tab-community-awards" style="display: none;">
+              <div class="admin-help-box">
+                <h4>🏆 Community Awards Management</h4>
+                <p>Grant awards to community members for quizzes, knowledge contributions, helpful routes, and other achievements.</p>
+              </div>
+              <div class="admin-awards-layout">
+                <!-- Member Selector -->
+                <div class="award-grant-section">
+                  <h4>Grant Award to Member</h4>
+                  <div class="form-group">
+                    <label>Select Member</label>
+                    <select id="award-member-select" class="search-input">
+                      <option value="">Choose a member...</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Select Award</label>
+                    <select id="award-type-select" class="search-input">
+                      <option value="">Choose an award...</option>
+                    </select>
+                  </div>
+                  <div id="award-preview" class="award-preview" style="display: none;">
+                    <span class="award-preview-icon" id="award-preview-icon"></span>
+                    <div class="award-preview-details">
+                      <strong id="award-preview-name"></strong>
+                      <p id="award-preview-desc"></p>
+                      <span class="award-preview-points" id="award-preview-points"></span>
+                    </div>
+                  </div>
+                  <button id="grant-award-btn" class="submit-btn" disabled>Grant Award</button>
+                </div>
+
+                <!-- Member Awards List -->
+                <div class="member-awards-overview">
+                  <h4>Member Profiles & Awards</h4>
+                  <input type="text" id="admin-member-search" placeholder="Search members..." class="search-input">
+                  <div id="admin-member-list" class="admin-member-list">
+                    <p class="empty-state">Loading members...</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -735,6 +787,230 @@
 
               <!-- Back Button -->
               <button id="discussion-close-btn" class="nav-btn" style="width: 100%; margin-top: 1.5rem;">Back to Map</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+                <p class="empty-state">No discussions yet. Be the first to start one!</p>
+              </div>
+
+              <!-- Back Button -->
+              <button id="discussion-close-btn" class="nav-btn" style="width: 100%; margin-top: 1.5rem;">Back to Map</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== AUTH SECTION (Sign In / Register / Forgot Password) ===== -->
+      <section class="auth-section" id="auth-section" style="display: none;">
+        <div class="card auth-card">
+          <button class="auth-close-btn" id="auth-close-btn">&times;</button>
+          
+          <!-- Auth Tabs -->
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-auth-tab="signin">Sign In</button>
+            <button class="auth-tab" data-auth-tab="register">Register</button>
+            <button class="auth-tab" data-auth-tab="forgot">Forgot Password</button>
+          </div>
+
+          <!-- Sign In Form -->
+          <div class="auth-tab-content" id="auth-tab-signin">
+            <div class="auth-header">
+              <h2>Welcome Back</h2>
+              <p>Sign in to your Montana Explorer account</p>
+            </div>
+            <div id="signin-error" class="auth-error" style="display: none;"></div>
+            <form id="signin-form">
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="signin-email" placeholder="your@email.com" required>
+              </div>
+              <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="signin-password" placeholder="Enter password" required>
+              </div>
+              <button type="submit" class="submit-btn">Sign In</button>
+              <p class="auth-link">Don't have an account? <a href="#" id="auth-goto-register">Register here</a></p>
+              <p class="auth-link"><a href="#" id="auth-goto-forgot">Forgot your password?</a></p>
+            </form>
+          </div>
+
+          <!-- Register Form -->
+          <div class="auth-tab-content" id="auth-tab-register" style="display: none;">
+            <div class="auth-header">
+              <h2>Join Montana Explorer</h2>
+              <p>Create your account and start earning awards</p>
+            </div>
+            <div id="register-error" class="auth-error" style="display: none;"></div>
+            <form id="register-form">
+              <div class="form-group">
+                <label>Display Name</label>
+                <input type="text" id="register-name" placeholder="Your display name" maxlength="30" required>
+              </div>
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="register-email" placeholder="your@email.com" required>
+              </div>
+              <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="register-password" placeholder="Minimum 6 characters" minlength="6" required>
+              </div>
+              <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" id="register-confirm" placeholder="Confirm password" minlength="6" required>
+              </div>
+              <div class="form-group">
+                <label>Choose Your Avatar</label>
+                <div class="avatar-picker" id="avatar-picker">
+                  <span class="avatar-option selected" data-emoji="👤">👤</span>
+                  <span class="avatar-option" data-emoji="🤠">🤠</span>
+                  <span class="avatar-option" data-emoji="🦌">🦌</span>
+                  <span class="avatar-option" data-emoji="🐻">🐻</span>
+                  <span class="avatar-option" data-emoji="🏔️">🏔️</span>
+                  <span class="avatar-option" data-emoji="🌲">🌲</span>
+                  <span class="avatar-option" data-emoji="🦅">🦅</span>
+                  <span class="avatar-option" data-emoji="🐺">🐺</span>
+                  <span class="avatar-option" data-emoji="🎣">🎣</span>
+                  <span class="avatar-option" data-emoji="⛷️">⛷️</span>
+                </div>
+                <input type="hidden" id="register-avatar" value="👤">
+              </div>
+              <button type="submit" class="submit-btn">Create Account</button>
+              <p class="auth-link">Already have an account? <a href="#" id="auth-goto-signin">Sign in here</a></p>
+            </form>
+          </div>
+
+          <!-- Forgot Password Form -->
+          <div class="auth-tab-content" id="auth-tab-forgot" style="display: none;">
+            <div class="auth-header">
+              <h2>Reset Password</h2>
+              <p>Enter your email to receive a password reset link</p>
+            </div>
+            <div id="forgot-error" class="auth-error" style="display: none;"></div>
+            <div id="forgot-success" class="auth-success" style="display: none;"></div>
+            <form id="forgot-form">
+              <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="forgot-email" placeholder="your@email.com" required>
+              </div>
+              <button type="submit" class="submit-btn">Send Reset Link</button>
+              <p class="auth-link"><a href="#" id="auth-goto-signin2">Back to Sign In</a></p>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== USER PROFILE & SETTINGS ===== -->
+      <section class="profile-section" id="profile-section" style="display: none;">
+        <div class="card profile-card">
+          <div class="profile-header">
+            <h2>👤 My Profile & Settings</h2>
+            <button class="nav-btn" id="profile-close-btn">Back to Map</button>
+          </div>
+
+          <div class="profile-layout">
+            <!-- Profile Overview -->
+            <div class="profile-overview">
+              <div class="profile-avatar" id="profile-avatar-display">👤</div>
+              <h3 id="profile-display-name">Member</h3>
+              <span class="profile-rank" id="profile-rank">👤 Member</span>
+              <div class="profile-stats">
+                <div class="profile-stat">
+                  <span class="stat-value" id="profile-total-points">0</span>
+                  <span class="stat-label">Points</span>
+                </div>
+                <div class="profile-stat">
+                  <span class="stat-value" id="profile-post-count">0</span>
+                  <span class="stat-label">Posts</span>
+                </div>
+                <div class="profile-stat">
+                  <span class="stat-value" id="profile-award-count">0</span>
+                  <span class="stat-label">Awards</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Profile Awards -->
+            <div class="profile-awards-section">
+              <h3>🎖️ My Awards</h3>
+              <div id="profile-awards-grid" class="profile-awards-grid">
+                <p class="empty-state">No awards earned yet. Start contributing!</p>
+              </div>
+            </div>
+
+            <!-- Profile Settings Form -->
+            <div class="profile-settings-section">
+              <h3>⚙️ Settings</h3>
+              <form id="profile-settings-form">
+                <div class="form-group">
+                  <label>Display Name</label>
+                  <input type="text" id="profile-edit-name" placeholder="Your display name" maxlength="30">
+                </div>
+                <div class="form-group">
+                  <label>Bio</label>
+                  <textarea id="profile-edit-bio" placeholder="Tell us about yourself and your Montana experience..." rows="3" maxlength="200"></textarea>
+                </div>
+                <div class="form-group">
+                  <label>Avatar</label>
+                  <div class="avatar-picker" id="profile-avatar-picker">
+                    <span class="avatar-option" data-emoji="👤">👤</span>
+                    <span class="avatar-option" data-emoji="🤠">🤠</span>
+                    <span class="avatar-option" data-emoji="🦌">🦌</span>
+                    <span class="avatar-option" data-emoji="🐻">🐻</span>
+                    <span class="avatar-option" data-emoji="🏔️">🏔️</span>
+                    <span class="avatar-option" data-emoji="🌲">🌲</span>
+                    <span class="avatar-option" data-emoji="🦅">🦅</span>
+                    <span class="avatar-option" data-emoji="🐺">🐺</span>
+                    <span class="avatar-option" data-emoji="🎣">🎣</span>
+                    <span class="avatar-option" data-emoji="⛷️">⛷️</span>
+                  </div>
+                  <input type="hidden" id="profile-edit-avatar" value="👤">
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="profile-show-leaderboard" checked>
+                    Show me on the public leaderboard
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="profile-public-profile" checked>
+                    Make my profile visible to others
+                  </label>
+                </div>
+                <button type="submit" class="submit-btn">Save Settings</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== TOP 20 AWARDS & LEADERBOARD PAGE ===== -->
+      <section class="awards-page-section" id="awards-page-section" style="display: none;">
+        <div class="card awards-page-card">
+          <div class="awards-page-header">
+            <h2>🏆 Montana Explorer Top 20 Leaderboard</h2>
+            <p class="awards-page-subtitle">The most knowledgeable and helpful Montana explorers</p>
+            <button class="nav-btn" id="awards-page-close-btn">Back to Map</button>
+          </div>
+
+          <!-- Leaderboard -->
+          <div class="awards-leaderboard-section">
+            <div class="top3-podium" id="top3-podium">
+              <!-- Filled by JS -->
+            </div>
+            <div class="full-leaderboard" id="full-leaderboard">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+
+          <!-- All Available Awards -->
+          <div class="all-awards-section">
+            <h3>🎖️ Available Awards</h3>
+            <p class="awards-section-subtitle">Earn these awards by contributing knowledge, completing quizzes, and exploring Montana</p>
+            <div class="awards-catalog" id="awards-catalog">
+              <!-- Filled by JS -->
             </div>
           </div>
         </div>
