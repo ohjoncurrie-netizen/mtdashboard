@@ -980,3 +980,22 @@ textarea:focus {
 .modal-content::-webkit-scrollbar-thumb:hover {
   background: var(--wood-light);
 }
+/* City Modal Styling */
+.city-modal-body {
+  padding: 20px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.businesses-list {
+  margin-top: 10px;
+}
+
+.business-item {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.business-item:hover {
+  transform: translateX(5px);
+  box-shadow: 0 4px 8px rgba(139, 69, 19, 0.2);
+}

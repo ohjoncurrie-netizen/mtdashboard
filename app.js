@@ -30,6 +30,9 @@ class MTApp {
     // Setup event listeners
     this.setupEventListeners();
     
+    // Populate county dropdown in business form
+    this.populateCountyDropdown();
+    
     // Check business expiration
     this.checkBusinessExpiration();
     
@@ -43,6 +46,47 @@ class MTApp {
     this.updateTimestamp();
     
     console.log('✅ Montana County Explorer initialized');
+  }
+
+  populateCountyDropdown() {
+    const countySelect = document.getElementById('biz-county');
+    if (!countySelect) return;
+    
+    // County names mapping
+    const countyNames = {
+      '30001': 'Flathead', '30003': 'Broadwater', '30005': 'Yellowstone',
+      '30007': 'Powder River', '30009': 'Valley', '30011': 'Phillips',
+      '30013': 'Custer', '30015': 'Silver Bow', '30017': 'Chouteau',
+      '30019': 'Phillips', '30021': 'Missoula', '30023': 'Big Horn',
+      '30025': 'Gallatin', '30027': 'Cascade', '30029': 'Dawson',
+      '30031': 'Big Horn', '30033': 'Hill', '30035': 'Beaverhead',
+      '30037': 'Meagher', '30039': 'Daniels', '30041': 'Toole',
+      '30043': 'Powell', '30045': 'Fergus', '30047': 'Rosebud',
+      '30049': 'Ravalli', '30051': 'Judith Basin', '30053': 'Park',
+      '30055': 'Roosevelt', '30057': 'Musselshell', '30059': 'Sanders',
+      '30061': 'Stillwater', '30063': 'Lincoln', '30065': 'Liberty',
+      '30067': 'Garfield', '30069': 'Richland', '30071': 'Carbon',
+      '30073': 'Lake', '30075': 'Carbon', '30077': 'Prairie',
+      '30079': 'Broadwater', '30081': 'Granite', '30083': 'Mineral',
+      '30085': 'Teton', '30087': 'Sanders', '30089': 'McCone',
+      '30091': 'Sheridan', '30093': 'Silver Bow', '30095': 'Stillwater',
+      '30097': 'Sweet Grass', '30099': 'Teton', '30101': 'Toole',
+      '30103': 'Treasure', '30105': 'Valley', '30107': 'Wheatland',
+      '30109': 'Wibaux', '30111': 'Yellowstone'
+    };
+    
+    // Clear existing options except the first one
+    countySelect.innerHTML = '<option value="">Select County...</option>';
+    
+    // Add all counties alphabetically
+    Object.entries(countyNames)
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .forEach(([fips, name]) => {
+        const option = document.createElement('option');
+        option.value = fips;
+        option.textContent = name + ' County';
+        countySelect.appendChild(option);
+      });
   }
 
   updateTimestamp() {
@@ -226,6 +270,35 @@ class MTApp {
             `;
           }
           
+          // Add cities list
+          const cities = COUNTY_CITIES[fipsCode] || [];
+          if (cities.length > 0) {
+            popupContent += `
+              <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid var(--parchment-dark);">
+                <p style="margin: 8px 0; color: var(--wood-dark);"><strong>🏘️ Cities & Towns:</strong></p>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+            `;
+            
+            cities.forEach(city => {
+              popupContent += `
+                <a href="#" 
+                   onclick="window.mtApp.openCityPage('${city}', '${countyName}', '${fipsCode}'); return false;"
+                   style="display: inline-block; padding: 4px 10px; background: var(--parchment-light); 
+                          border: 1px solid var(--wood-dark); border-radius: 4px; color: var(--wood-dark); 
+                          text-decoration: none; font-size: 0.9em; transition: all 0.2s;"
+                   onmouseover="this.style.background='var(--wood-dark)'; this.style.color='var(--parchment-light)';"
+                   onmouseout="this.style.background='var(--parchment-light)'; this.style.color='var(--wood-dark)';">
+                  ${city}
+                </a>
+              `;
+            });
+            
+            popupContent += `
+                </div>
+              </div>
+            `;
+          }
+          
           popupContent += `</div>`;
           
           // Bind popup to layer
@@ -301,6 +374,22 @@ class MTApp {
     const businessForm = document.getElementById('business-form');
     if (businessForm) {
       businessForm.addEventListener('submit', (e) => this.handleBusinessSubmit(e));
+    }
+    
+    // County dropdown change - update cities
+    const countySelect = document.getElementById('biz-county');
+    if (countySelect) {
+      countySelect.addEventListener('change', (e) => this.updateCityDropdown(e.target.value));
+    }
+    
+    // City modal close
+    const cityModalClose = document.getElementById('city-modal-close');
+    const cityModalBack = document.getElementById('city-modal-back');
+    if (cityModalClose) {
+      cityModalClose.addEventListener('click', () => this.closeCityModal());
+    }
+    if (cityModalBack) {
+      cityModalBack.addEventListener('click', () => this.closeCityModal());
     }
     
     // UMap button
@@ -412,6 +501,81 @@ class MTApp {
     }
   }
 
+  updateCityDropdown(fipsCode) {
+    const citySelect = document.getElementById('biz-city');
+    if (!citySelect) return;
+    
+    citySelect.innerHTML = '<option value="">Select City...</option>';
+    
+    const cities = COUNTY_CITIES[fipsCode] || [];
+    cities.forEach(city => {
+      const option = document.createElement('option');
+      option.value = city;
+      option.textContent = city;
+      citySelect.appendChild(option);
+    });
+    
+    citySelect.disabled = cities.length === 0;
+  }
+
+  openCityPage(cityName, countyName, fipsCode) {
+    const modal = document.getElementById('city-modal');
+    const title = document.getElementById('city-modal-title');
+    const countyInfo = document.getElementById('city-county-info');
+    const businessList = document.getElementById('city-businesses-list');
+    const cityNameSpan = document.getElementById('city-name-businesses');
+    
+    if (!modal) return;
+    
+    // Set city info
+    title.textContent = cityName;
+    countyInfo.textContent = `${countyName} • FIPS: ${fipsCode}`;
+    cityNameSpan.textContent = cityName;
+    
+    // Filter businesses by city
+    const cityBusinesses = BUSINESSES.filter(b => 
+      b.active && b.city === cityName && b.county === fipsCode
+    );
+    
+    // Display businesses
+    if (cityBusinesses.length > 0) {
+      businessList.innerHTML = cityBusinesses.map(biz => `
+        <div class="business-item" style="padding: 12px; margin-bottom: 10px; background: var(--parchment-light); 
+             border: 1px solid var(--wood-dark); border-radius: 6px;">
+          <h4 style="margin: 0 0 8px 0; color: var(--wood-dark);">
+            ${biz.icon} ${biz.name}
+          </h4>
+          <p style="margin: 4px 0; color: var(--ink-dark); font-size: 0.9em;">
+            📍 ${biz.address}
+          </p>
+          ${biz.phone ? `<p style="margin: 4px 0; color: var(--ink-dark); font-size: 0.9em;">📞 ${biz.phone}</p>` : ''}
+          ${biz.website ? `
+            <p style="margin: 8px 0 0 0;">
+              <a href="${biz.website}" target="_blank" style="color: var(--wood-dark); text-decoration: underline;">
+                Visit Website
+              </a>
+            </p>
+          ` : ''}
+        </div>
+      `).join('');
+    } else {
+      businessList.innerHTML = `
+        <p style="color: var(--ink-dark); font-style: italic;">
+          No businesses registered in ${cityName} yet. Be the first!
+        </p>
+      `;
+    }
+    
+    modal.style.display = 'block';
+  }
+
+  closeCityModal() {
+    const modal = document.getElementById('city-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+
   refresh() {
     window.location.reload();
   }
@@ -423,11 +587,12 @@ class MTApp {
     
     // Add markers for active businesses
     BUSINESSES.filter(b => b.active).forEach(business => {
+      const displayAddress = business.city ? `${business.address}, ${business.city}` : (business.fullAddress || business.address);
       const marker = L.marker([business.lat, business.lng])
         .bindPopup(`
           <div>
             <h3>${business.icon} ${business.name}</h3>
-            <p style="margin: 8px 0;">${business.address}</p>
+            <p style="margin: 8px 0;">📍 ${displayAddress}</p>
             ${business.phone ? `<p style="margin: 8px 0;">📞 ${business.phone}</p>` : ''}
             ${business.website ? `<p style="margin: 8px 0;"><a href="${business.website}" target="_blank" style="color: var(--wood-dark); text-decoration: underline;">Visit Website</a></p>` : ''}
           </div>
@@ -447,13 +612,20 @@ class MTApp {
     button.disabled = true;
 
     try {
+      const county = document.getElementById('biz-county').value;
+      const city = document.getElementById('biz-city').value;
       const address = document.getElementById('biz-address').value;
       
+      if (!county || !city) {
+        throw new Error('Please select both county and city');
+      }
+      
       // 🌍 REAL GOOGLE MAPS GEOCODING
+      const fullAddress = `${address}, ${city}, Montana, USA`;
       const geocodeResult = await new Promise((resolve, reject) => {
         this.geocoder.geocode(
           { 
-            address: address + ', Montana, USA',
+            address: fullAddress,
             componentRestrictions: { country: 'US', administrativeArea: 'MT' }
           },
           (results, status) => {
@@ -474,7 +646,10 @@ class MTApp {
       const business = {
         id: 'biz_' + Date.now(),
         name: document.getElementById('biz-name').value,
-        address: geocodeResult.formatted,
+        county: county,
+        city: city,
+        address: address,
+        fullAddress: geocodeResult.formatted,
         phone: document.getElementById('biz-phone').value,
         website: document.getElementById('biz-website').value,
         icon: document.getElementById('biz-icon').value || '🏪',
@@ -490,9 +665,10 @@ class MTApp {
       this.addBusinessMarkers();
       this.renderBusinessList();
       
-      alert(`✅ ${business.name} added successfully!\n📍 ${geocodeResult.formatted}\n💳 Subscription activated. Expires: ${new Date(business.expires).toLocaleDateString()}`);
+      alert(`✅ ${business.name} added successfully!\n📍 ${city}, ${geocodeResult.formatted}\n💳 Subscription activated. Expires: ${new Date(business.expires).toLocaleDateString()}`);
       
       document.getElementById('business-form').reset();
+      document.getElementById('biz-city').innerHTML = '<option value="">Select County First...</option>';
       document.getElementById('business-form-section').style.display = 'none';
       
     } catch (error) {
