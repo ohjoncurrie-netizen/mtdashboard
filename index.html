@@ -136,6 +136,10 @@
             <h3>Cities & Towns</h3>
             <div id="county-cities-list" class="chip-list"></div>
           </div>
+          <div class="county-events">
+            <h3>📅 Events & Activities</h3>
+            <div id="county-events-list" class="events-grid"></div>
+          </div>
         </div>
       </section>
 
@@ -164,6 +168,10 @@
             <h3>Local Businesses</h3>
             <div id="city-page-businesses" class="businesses-list"></div>
           </div>
+          <div class="city-section">
+            <h3>📅 Events & Activities</h3>
+            <div id="city-events-list" class="events-grid"></div>
+          </div>
         </div>
       </section>
 
@@ -172,17 +180,18 @@
         <!-- Login Screen -->
         <div class="card admin-login" id="admin-login">
           <h2>Admin Login</h2>
+          <div id="admin-login-error" class="error-message" style="display: none;"></div>
           <form id="admin-login-form">
-            <div class="form-group" id="admin-email-group" style="display: none;">
+            <div class="form-group" id="admin-email-group">
               <label>Email</label>
-              <input type="email" id="admin-email" placeholder="admin@example.com">
+              <input type="email" id="admin-email" placeholder="admin@example.com" required>
             </div>
             <div class="form-group">
               <label>Password</label>
-              <input type="password" id="admin-password" placeholder="Enter admin password" required>
+              <input type="password" id="admin-password" placeholder="Enter password" required>
             </div>
             <button type="submit" class="submit-btn">Login</button>
-            <p class="form-note" id="admin-login-note">Default password: admin123</p>
+            <p class="form-note" id="admin-login-note"></p>
           </form>
         </div>
 
@@ -200,6 +209,8 @@
             <div class="admin-tabs">
               <button class="admin-tab active" data-tab="counties">Edit Counties</button>
               <button class="admin-tab" data-tab="cities">Edit Cities</button>
+              <button class="admin-tab" data-tab="events">Events</button>
+              <button class="admin-tab" data-tab="users">Manage Users</button>
               <button class="admin-tab" data-tab="settings">Settings</button>
             </div>
 
@@ -232,6 +243,47 @@
               </div>
               <div class="county-list" id="city-list">
                 <p class="empty-state">Select a county to see its cities.</p>
+              </div>
+            </div>
+
+            <!-- Events Tab -->
+            <div class="admin-tab-content" id="tab-events" style="display: none;">
+              <div class="admin-help-box">
+                <h4>💡 Events Management</h4>
+                <p>Add and manage local events, festivals, business promotions, and outdoor activities for each county and city.</p>
+              </div>
+              <div class="admin-header-bar">
+                <div class="admin-search">
+                  <select id="event-filter-county" class="search-input" style="max-width: 200px;">
+                    <option value="">All Counties</option>
+                  </select>
+                  <select id="event-filter-type" class="search-input" style="max-width: 200px;">
+                    <option value="">All Types</option>
+                    <option value="community">🎉 Community Events</option>
+                    <option value="business">🏪 Business Events</option>
+                    <option value="historical">📜 Historical Facts</option>
+                    <option value="outdoor">🏔️ Outdoor Activities</option>
+                  </select>
+                  <input type="text" id="event-search" placeholder="Search events..." class="search-input" style="max-width: 250px;">
+                </div>
+                <button id="add-event-btn" class="submit-btn">+ Add Event</button>
+              </div>
+              <div class="event-list" id="event-list">
+                <p class="empty-state">No events yet. Click "+ Add Event" to create one.</p>
+              </div>
+            </div>
+
+            <!-- Manage Users Tab -->
+            <div class="admin-tab-content" id="tab-users" style="display: none;">
+              <div class="admin-help-box">
+                <h4>💡 User Management</h4>
+                <p id="user-help-text">Multi-user authentication requires Firebase. Configure Firebase in firebase-config.js to enable this feature.</p>
+              </div>
+              <div class="admin-header-bar" id="users-header" style="display: none;">
+                <button id="add-user-btn" class="submit-btn">+ Add New User</button>
+              </div>
+              <div class="user-list" id="user-list">
+                <p class="empty-state">Loading users...</p>
               </div>
             </div>
 
@@ -362,6 +414,156 @@
               <div class="modal-footer">
                 <button type="button" class="nav-btn" id="modal-cancel-btn">Cancel</button>
                 <button type="submit" class="submit-btn">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Add User Modal -->
+        <div class="modal" id="add-user-modal" style="display: none;">
+          <div class="modal-content card">
+            <div class="modal-header">
+              <h3 id="user-modal-title">Add New Admin User</h3>
+              <button class="modal-close" id="user-modal-close-btn">&times;</button>
+            </div>
+            <form id="add-user-form">
+              <div class="form-group">
+                <label>Email Address *</label>
+                <input type="email" id="new-user-email" placeholder="admin@example.com" required>
+              </div>
+
+              <div class="form-group">
+                <label>Display Name</label>
+                <input type="text" id="new-user-name" placeholder="John Doe">
+              </div>
+
+              <div class="form-group">
+                <label>Temporary Password *</label>
+                <input type="password" id="new-user-password" placeholder="Minimum 6 characters" required>
+                <p class="form-note">User should change this password on first login.</p>
+              </div>
+
+              <div class="form-group">
+                <label>Role</label>
+                <select id="new-user-role">
+                  <option value="admin">Admin (Full Access)</option>
+                  <option value="editor">Editor (Content Only)</option>
+                </select>
+              </div>
+
+              <div class="modal-footer">
+                <button type="button" class="nav-btn" id="user-modal-cancel-btn">Cancel</button>
+                <button type="submit" class="submit-btn">Add User</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Event Edit Modal -->
+        <div class="modal" id="event-edit-modal" style="display: none;">
+          <div class="modal-content card" style="max-width: 700px;">
+            <div class="modal-header">
+              <h3 id="event-modal-title">Add Event</h3>
+              <button class="modal-close" id="event-modal-close-btn">&times;</button>
+            </div>
+            <form id="event-edit-form">
+              <input type="hidden" id="edit-event-id">
+
+              <div class="form-group">
+                <label>Event Name *</label>
+                <input type="text" id="edit-event-name" placeholder="Montana State Fair" required>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Event Type *</label>
+                  <select id="edit-event-type" required>
+                    <option value="community">🎉 Community Event</option>
+                    <option value="business">🏪 Business Event</option>
+                    <option value="historical">📜 Historical Fact</option>
+                    <option value="outdoor">🏔️ Outdoor Activity</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="edit-event-featured">
+                    Featured Event
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Description *</label>
+                <textarea id="edit-event-description" rows="4" placeholder="Describe the event..." required></textarea>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>County *</label>
+                  <select id="edit-event-county" required>
+                    <option value="">Select County...</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>City (optional)</label>
+                  <select id="edit-event-city">
+                    <option value="">County-wide</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Start Date</label>
+                  <input type="date" id="edit-event-start">
+                </div>
+                <div class="form-group">
+                  <label>End Date (optional)</label>
+                  <input type="date" id="edit-event-end">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Recurring</label>
+                  <select id="edit-event-recurring">
+                    <option value="">One-time</option>
+                    <option value="annual">Annual</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Price</label>
+                  <input type="text" id="edit-event-price" placeholder="Free or $10-25">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Address/Location</label>
+                <input type="text" id="edit-event-address" placeholder="Event venue or location">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Website</label>
+                  <input type="url" id="edit-event-website" placeholder="https://example.com">
+                </div>
+                <div class="form-group">
+                  <label>Contact Email</label>
+                  <input type="email" id="edit-event-email" placeholder="info@example.com">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Contact Phone</label>
+                <input type="tel" id="edit-event-phone" placeholder="(406) 555-1234">
+              </div>
+
+              <div class="modal-footer">
+                <button type="button" class="nav-btn" id="event-modal-cancel-btn">Cancel</button>
+                <button type="button" class="nav-btn danger" id="event-delete-btn" style="display: none;">Delete Event</button>
+                <button type="submit" class="submit-btn">Save Event</button>
               </div>
             </form>
           </div>

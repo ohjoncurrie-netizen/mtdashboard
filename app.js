@@ -83,12 +83,39 @@ class MTApp {
     // Setup county directory
     this.buildCountyDirectory();
 
-    // Show email field if Firebase is active
+    // Update login note based on Firebase availability
+    const loginNote = document.getElementById('admin-login-note');
+    if (loginNote) {
+      if (this.ds && this.ds.isFirebase()) {
+        loginNote.textContent = 'Use your Firebase admin email & password.';
+      } else {
+        loginNote.textContent = 'Default password: admin123 (Configure Firebase for multi-user support)';
+      }
+    }
+
+    // Setup Firebase auth state listener for auto-login
     if (this.ds && this.ds.isFirebase()) {
-      const emailGroup = document.getElementById('admin-email-group');
-      const loginNote = document.getElementById('admin-login-note');
-      if (emailGroup) emailGroup.style.display = 'block';
-      if (loginNote) loginNote.textContent = 'Use your Firebase admin email & password.';
+      this.ds.onAuthChange((user) => {
+        if (user) {
+          // User is signed in
+          ADMIN_CONFIG.isLoggedIn = true;
+          console.log('User authenticated:', user.email);
+          // If admin panel is open, show dashboard
+          const adminSection = document.getElementById('admin-section');
+          const adminLogin = document.getElementById('admin-login');
+          const adminDashboard = document.getElementById('admin-dashboard');
+          if (adminSection && adminSection.style.display !== 'none') {
+            if (adminLogin) adminLogin.style.display = 'none';
+            if (adminDashboard) {
+              adminDashboard.style.display = 'block';
+              this.loadCountyList();
+            }
+          }
+        } else {
+          // User is signed out
+          ADMIN_CONFIG.isLoggedIn = false;
+        }
+      });
     }
 
     // Handle any deep links
@@ -587,6 +614,80 @@ class MTApp {
     if (adminSettingsForm) {
       adminSettingsForm.addEventListener('submit', (e) => this.handlePasswordChange(e));
     }
+
+    // ===== USER MANAGEMENT =====
+
+    // Add user button
+    const addUserBtn = document.getElementById('add-user-btn');
+    if (addUserBtn) {
+      addUserBtn.addEventListener('click', () => this.openAddUserModal());
+    }
+
+    // Add user form
+    const addUserForm = document.getElementById('add-user-form');
+    if (addUserForm) {
+      addUserForm.addEventListener('submit', (e) => this.handleAddUser(e));
+    }
+
+    // User modal close buttons
+    const userModalCloseBtn = document.getElementById('user-modal-close-btn');
+    const userModalCancelBtn = document.getElementById('user-modal-cancel-btn');
+    if (userModalCloseBtn) {
+      userModalCloseBtn.addEventListener('click', () => this.closeAddUserModal());
+    }
+    if (userModalCancelBtn) {
+      userModalCancelBtn.addEventListener('click', () => this.closeAddUserModal());
+    }
+
+    // ===== EVENTS ADMIN =====
+
+    // Add event button
+    const addEventBtn = document.getElementById('add-event-btn');
+    if (addEventBtn) {
+      addEventBtn.addEventListener('click', () => this.openEventEditor());
+    }
+
+    // Event filter dropdowns and search
+    const eventFilterCounty = document.getElementById('event-filter-county');
+    const eventFilterType = document.getElementById('event-filter-type');
+    const eventSearch = document.getElementById('event-search');
+
+    if (eventFilterCounty) {
+      eventFilterCounty.addEventListener('change', () => this.filterEventList());
+    }
+    if (eventFilterType) {
+      eventFilterType.addEventListener('change', () => this.filterEventList());
+    }
+    if (eventSearch) {
+      eventSearch.addEventListener('input', () => this.filterEventList());
+    }
+
+    // Event edit form
+    const eventEditForm = document.getElementById('event-edit-form');
+    if (eventEditForm) {
+      eventEditForm.addEventListener('submit', (e) => this.handleEventSubmit(e));
+    }
+
+    // Event county dropdown change - update cities
+    const eventCountySelect = document.getElementById('edit-event-county');
+    if (eventCountySelect) {
+      eventCountySelect.addEventListener('change', (e) => this.updateEventCityDropdown(e.target.value));
+    }
+
+    // Event modal close buttons
+    const eventModalCloseBtn = document.getElementById('event-modal-close-btn');
+    const eventModalCancelBtn = document.getElementById('event-modal-cancel-btn');
+    const eventDeleteBtn = document.getElementById('event-delete-btn');
+
+    if (eventModalCloseBtn) {
+      eventModalCloseBtn.addEventListener('click', () => this.closeEventEditModal());
+    }
+    if (eventModalCancelBtn) {
+      eventModalCancelBtn.addEventListener('click', () => this.closeEventEditModal());
+    }
+    if (eventDeleteBtn) {
+      eventDeleteBtn.addEventListener('click', () => this.handleEventDelete());
+    }
   }
 
   toggleCountyLayer() {
@@ -731,6 +832,13 @@ class MTApp {
       `).join('');
     } else {
       businessesEl.innerHTML = `<p style="color: var(--ink-dark); font-style: italic;">No businesses registered in ${cityName} yet. Be the first!</p>`;
+    }
+
+    // Render events
+    const eventsEl = document.getElementById('city-events-list');
+    if (eventsEl) {
+      const cityEvents = this.getCityEvents(fipsCode, citySlug);
+      eventsEl.innerHTML = this.renderEventsSection(cityEvents);
     }
   }
 
@@ -1009,52 +1117,38 @@ class MTApp {
     e.preventDefault();
     const password = document.getElementById('admin-password').value;
     const email = document.getElementById('admin-email')?.value || '';
+    const errorDiv = document.getElementById('admin-login-error');
 
-    if (this.ds && this.ds.isFirebase()) {
-      // Firebase auth
-      if (!email) {
-        alert('❌ Please enter your email address.');
-        return;
-      }
-      const result = await this.ds.login(email, password);
-      if (result.success) {
-        ADMIN_CONFIG.isLoggedIn = true;
-        document.getElementById('admin-login').style.display = 'none';
-        document.getElementById('admin-dashboard').style.display = 'block';
-        document.getElementById('admin-password').value = '';
-        this.loadCountyList();
-        if (this.pendingCountyEdit) {
-          if (this.pendingCountyEdit.isCity) {
-            this.openAdminForCity(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
-          } else {
-            this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
-          }
-          this.pendingCountyEdit = null;
+    // Hide previous errors
+    if (errorDiv) {
+      errorDiv.style.display = 'none';
+      errorDiv.textContent = '';
+    }
+
+    const result = await this.ds.login(email, password);
+
+    if (result.success) {
+      ADMIN_CONFIG.isLoggedIn = true;
+      document.getElementById('admin-login').style.display = 'none';
+      document.getElementById('admin-dashboard').style.display = 'block';
+      document.getElementById('admin-password').value = '';
+      document.getElementById('admin-email').value = '';
+      this.loadCountyList();
+      if (this.pendingCountyEdit) {
+        if (this.pendingCountyEdit.isCity) {
+          this.openAdminForCity(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+        } else {
+          this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
         }
-      } else {
-        alert(`❌ ${result.error}`);
-        document.getElementById('admin-password').value = '';
+        this.pendingCountyEdit = null;
       }
     } else {
-      // localStorage fallback
-      if (password === ADMIN_CONFIG.password) {
-        ADMIN_CONFIG.isLoggedIn = true;
-        document.getElementById('admin-login').style.display = 'none';
-        document.getElementById('admin-dashboard').style.display = 'block';
-        document.getElementById('admin-password').value = '';
-        this.loadCountyList();
-        if (this.pendingCountyEdit) {
-          if (this.pendingCountyEdit.isCity) {
-            this.openAdminForCity(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
-          } else {
-            this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
-          }
-          this.pendingCountyEdit = null;
-        }
-      } else {
-        alert('❌ Incorrect password. Please try again.');
-        document.getElementById('admin-password').value = '';
+      // Show error message
+      if (errorDiv) {
+        errorDiv.textContent = `❌ ${result.error}`;
+        errorDiv.style.display = 'block';
       }
+      document.getElementById('admin-password').value = '';
     }
   }
 
@@ -1076,15 +1170,23 @@ class MTApp {
         tab.classList.add('active');
       }
     });
-    
+
     // Update tab content
     document.querySelectorAll('.admin-tab-content').forEach(content => {
       content.style.display = 'none';
     });
-    
+
     const activeTab = document.getElementById(`tab-${tabName}`);
     if (activeTab) {
       activeTab.style.display = 'block';
+    }
+
+    // Load data for specific tabs
+    if (tabName === 'users') {
+      this.loadUserList();
+    } else if (tabName === 'events') {
+      this.populateEventCountyDropdown();
+      this.loadEventList();
     }
   }
 
@@ -1397,6 +1499,13 @@ class MTApp {
           ${city}
         </button>
       `).join('');
+    }
+
+    // Render events
+    const eventsEl = document.getElementById('county-events-list');
+    if (eventsEl) {
+      const countyEvents = this.getCountyEvents(fipsCode);
+      eventsEl.innerHTML = this.renderEventsSection(countyEvents);
     }
   }
 
@@ -1923,6 +2032,534 @@ class MTApp {
     });
     
     return facts;
+  }
+
+  // ============================================
+  // NOTIFICATION SYSTEM
+  // ============================================
+
+  showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      notification.classList.add('show');
+    }, 10);
+
+    setTimeout(() => {
+      notification.classList.remove('show');
+      setTimeout(() => notification.remove(), 300);
+    }, 3000);
+  }
+
+  // ============================================
+  // USER MANAGEMENT
+  // ============================================
+
+  async loadUserList() {
+    const userList = document.getElementById('user-list');
+    const usersHeader = document.getElementById('users-header');
+    const userHelpText = document.getElementById('user-help-text');
+
+    if (!this.ds) return;
+
+    // Show/hide add user button based on Firebase availability
+    if (this.ds.isFirebase()) {
+      if (usersHeader) usersHeader.style.display = 'flex';
+      if (userHelpText) userHelpText.textContent = 'Add and manage admin users who can edit county and event information.';
+    } else {
+      if (usersHeader) usersHeader.style.display = 'none';
+      if (userHelpText) userHelpText.textContent = 'Multi-user authentication requires Firebase. Configure Firebase in firebase-config.js to enable this feature.';
+    }
+
+    const users = await this.ds.getUserList();
+    this.renderUserList(users);
+  }
+
+  renderUserList(users) {
+    const userList = document.getElementById('user-list');
+    if (!userList) return;
+
+    if (users.length === 0) {
+      userList.innerHTML = '<p class="empty-state">No users found.</p>';
+      return;
+    }
+
+    userList.innerHTML = users.map(user => `
+      <div class="user-item">
+        <div class="user-item-info">
+          <h4>${user.displayName || user.email}<span class="user-role-badge">${user.role || 'admin'}</span></h4>
+          <p>${user.email}</p>
+          ${user.createdAt ? `<p style="font-size: 0.8rem;">Created: ${new Date(user.createdAt).toLocaleDateString()}</p>` : ''}
+        </div>
+        <div class="user-actions">
+          ${user.uid !== 'local' && this.ds.isFirebase() ? `<button class="nav-btn danger" onclick="mtApp.handleDeleteUser('${user.uid}')">Delete</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  openAddUserModal() {
+    const modal = document.getElementById('add-user-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      // Clear form
+      document.getElementById('new-user-email').value = '';
+      document.getElementById('new-user-name').value = '';
+      document.getElementById('new-user-password').value = '';
+      document.getElementById('new-user-role').value = 'admin';
+    }
+  }
+
+  closeAddUserModal() {
+    const modal = document.getElementById('add-user-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async handleAddUser(e) {
+    e.preventDefault();
+    const email = document.getElementById('new-user-email').value;
+    const displayName = document.getElementById('new-user-name').value;
+    const password = document.getElementById('new-user-password').value;
+    const role = document.getElementById('new-user-role').value;
+
+    if (!email || !password) {
+      this.showNotification('Please fill in all required fields.', 'error');
+      return;
+    }
+
+    if (password.length < 6) {
+      this.showNotification('Password must be at least 6 characters.', 'error');
+      return;
+    }
+
+    const result = await this.ds.createUser(email, password, displayName, role);
+
+    if (result.success) {
+      this.showNotification(result.message || 'User added successfully!', 'success');
+      this.closeAddUserModal();
+      this.loadUserList();
+    } else {
+      this.showNotification(result.error, 'error');
+    }
+  }
+
+  async handleDeleteUser(userId) {
+    const confirmed = confirm(
+      'Are you sure you want to remove this admin user?\n\n' +
+      'They will lose access to the admin panel immediately.'
+    );
+
+    if (!confirmed) return;
+
+    const result = await this.ds.deleteUser(userId);
+
+    if (result.success) {
+      this.showNotification('User removed successfully.', 'success');
+      this.loadUserList();
+    } else {
+      this.showNotification(result.error, 'error');
+    }
+  }
+
+  // ============================================
+  // EVENTS ADMIN
+  // ============================================
+
+  async loadEventList(filters = {}) {
+    const eventList = document.getElementById('event-list');
+    if (!eventList) return;
+
+    const events = await this.ds.getAllEvents();
+
+    // Apply filters
+    let filtered = events;
+    if (filters.countyFips) {
+      filtered = filtered.filter(e => e.countyFips === filters.countyFips);
+    }
+    if (filters.type) {
+      filtered = filtered.filter(e => e.type === filters.type);
+    }
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(e =>
+        e.name.toLowerCase().includes(searchLower) ||
+        (e.description && e.description.toLowerCase().includes(searchLower))
+      );
+    }
+
+    this.renderEventList(filtered);
+  }
+
+  renderEventList(events) {
+    const eventList = document.getElementById('event-list');
+    if (!eventList) return;
+
+    if (events.length === 0) {
+      eventList.innerHTML = '<p class="empty-state">No events found.</p>';
+      return;
+    }
+
+    const typeIcons = {
+      community: '🎉',
+      business: '🏪',
+      historical: '📜',
+      outdoor: '🏔️'
+    };
+
+    const typeNames = {
+      community: 'Community',
+      business: 'Business',
+      historical: 'Historical',
+      outdoor: 'Outdoor'
+    };
+
+    eventList.innerHTML = events.map(event => {
+      const countyName = COUNTY_NAME_MAP[event.countyFips] || event.countyFips;
+      const dateStr = event.startDate ? new Date(event.startDate).toLocaleDateString() : 'No date';
+
+      return `
+        <div class="event-item" onclick="mtApp.openEventEditor('${event.id}')">
+          <div class="event-item-info">
+            <h4>
+              ${event.featured ? '⭐ ' : ''}${event.name}
+              <span class="event-type-badge">${typeIcons[event.type] || ''} ${typeNames[event.type] || event.type}</span>
+            </h4>
+            <p>${countyName}${event.citySlug ? ` - ${event.citySlug}` : ''} • ${dateStr}</p>
+            <p>${event.description ? event.description.substring(0, 100) + (event.description.length > 100 ? '...' : '') : ''}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async filterEventList() {
+    const countyFilter = document.getElementById('event-filter-county')?.value || '';
+    const typeFilter = document.getElementById('event-filter-type')?.value || '';
+    const searchInput = document.getElementById('event-search')?.value || '';
+
+    await this.loadEventList({
+      countyFips: countyFilter,
+      type: typeFilter,
+      search: searchInput
+    });
+  }
+
+  async openEventEditor(eventId = null) {
+    const modal = document.getElementById('event-edit-modal');
+    const title = document.getElementById('event-modal-title');
+    const deleteBtn = document.getElementById('event-delete-btn');
+
+    if (!modal) return;
+
+    // Populate county dropdown
+    this.populateEventCountyDropdown();
+
+    if (eventId) {
+      // Edit existing event
+      const events = await this.ds.getAllEvents();
+      const event = events.find(e => e.id === eventId);
+
+      if (!event) {
+        this.showNotification('Event not found.', 'error');
+        return;
+      }
+
+      title.textContent = 'Edit Event';
+      deleteBtn.style.display = 'block';
+
+      document.getElementById('edit-event-id').value = event.id;
+      document.getElementById('edit-event-name').value = event.name || '';
+      document.getElementById('edit-event-type').value = event.type || 'community';
+      document.getElementById('edit-event-featured').checked = event.featured || false;
+      document.getElementById('edit-event-description').value = event.description || '';
+      document.getElementById('edit-event-county').value = event.countyFips || '';
+
+      // Update city dropdown based on county
+      await this.updateEventCityDropdown(event.countyFips);
+      document.getElementById('edit-event-city').value = event.citySlug || '';
+
+      document.getElementById('edit-event-start').value = event.startDate || '';
+      document.getElementById('edit-event-end').value = event.endDate || '';
+      document.getElementById('edit-event-recurring').value = event.recurrencePattern || '';
+      document.getElementById('edit-event-price').value = event.price || '';
+      document.getElementById('edit-event-address').value = event.address || '';
+      document.getElementById('edit-event-website').value = event.website || '';
+      document.getElementById('edit-event-email').value = event.contactEmail || '';
+      document.getElementById('edit-event-phone').value = event.contactPhone || '';
+    } else {
+      // New event
+      title.textContent = 'Add Event';
+      deleteBtn.style.display = 'none';
+
+      document.getElementById('edit-event-id').value = '';
+      document.getElementById('edit-event-name').value = '';
+      document.getElementById('edit-event-type').value = 'community';
+      document.getElementById('edit-event-featured').checked = false;
+      document.getElementById('edit-event-description').value = '';
+      document.getElementById('edit-event-county').value = '';
+      document.getElementById('edit-event-city').innerHTML = '<option value="">County-wide</option>';
+      document.getElementById('edit-event-start').value = '';
+      document.getElementById('edit-event-end').value = '';
+      document.getElementById('edit-event-recurring').value = '';
+      document.getElementById('edit-event-price').value = '';
+      document.getElementById('edit-event-address').value = '';
+      document.getElementById('edit-event-website').value = '';
+      document.getElementById('edit-event-email').value = '';
+      document.getElementById('edit-event-phone').value = '';
+    }
+
+    modal.style.display = 'flex';
+  }
+
+  closeEventEditModal() {
+    const modal = document.getElementById('event-edit-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async handleEventSubmit(e) {
+    e.preventDefault();
+    const button = e.target.querySelector('button[type="submit"]');
+    const originalText = button.textContent;
+    button.textContent = 'Saving...';
+    button.disabled = true;
+
+    try {
+      const eventId = document.getElementById('edit-event-id').value;
+      const currentUser = this.ds.getCurrentUser();
+
+      const eventData = {
+        name: document.getElementById('edit-event-name').value,
+        type: document.getElementById('edit-event-type').value,
+        featured: document.getElementById('edit-event-featured').checked,
+        description: document.getElementById('edit-event-description').value,
+        countyFips: document.getElementById('edit-event-county').value,
+        citySlug: document.getElementById('edit-event-city').value || null,
+        startDate: document.getElementById('edit-event-start').value || null,
+        endDate: document.getElementById('edit-event-end').value || null,
+        recurrencePattern: document.getElementById('edit-event-recurring').value || null,
+        price: document.getElementById('edit-event-price').value || null,
+        address: document.getElementById('edit-event-address').value || null,
+        website: document.getElementById('edit-event-website').value || null,
+        contactEmail: document.getElementById('edit-event-email').value || null,
+        contactPhone: document.getElementById('edit-event-phone').value || null,
+        isActive: true,
+        createdBy: currentUser ? currentUser.uid : 'system'
+      };
+
+      if (eventId) {
+        eventData.id = eventId;
+      }
+
+      await this.ds.saveEvent(eventData);
+
+      // Update global EVENTS_DATA
+      const allEvents = await this.ds.getAllEvents();
+      EVENTS_DATA.length = 0;
+      EVENTS_DATA.push(...allEvents);
+
+      this.showNotification('Event saved successfully!', 'success');
+      this.closeEventEditModal();
+      this.filterEventList();
+    } catch (error) {
+      console.error('Error saving event:', error);
+      this.showNotification('Failed to save event. Please try again.', 'error');
+    } finally {
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+  }
+
+  async handleEventDelete() {
+    const eventId = document.getElementById('edit-event-id').value;
+    if (!eventId) return;
+
+    const eventName = document.getElementById('edit-event-name').value;
+    const confirmed = confirm(
+      `Are you sure you want to delete "${eventName}"?\n\n` +
+      'This action cannot be undone.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await this.ds.deleteEvent(eventId);
+
+      // Update global EVENTS_DATA
+      const allEvents = await this.ds.getAllEvents();
+      EVENTS_DATA.length = 0;
+      EVENTS_DATA.push(...allEvents);
+
+      this.showNotification('Event deleted successfully.', 'success');
+      this.closeEventEditModal();
+      this.filterEventList();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      this.showNotification('Failed to delete event.', 'error');
+    }
+  }
+
+  async updateEventCityDropdown(fipsCode) {
+    const citySelect = document.getElementById('edit-event-city');
+    if (!citySelect) return;
+
+    citySelect.innerHTML = '<option value="">County-wide</option>';
+
+    if (!fipsCode || !COUNTY_CITIES[fipsCode]) return;
+
+    const cities = COUNTY_CITIES[fipsCode];
+    cities.forEach(cityName => {
+      const option = document.createElement('option');
+      option.value = this.slugify(cityName);
+      option.textContent = cityName;
+      citySelect.appendChild(option);
+    });
+  }
+
+  populateEventCountyDropdown() {
+    const countySelect = document.getElementById('edit-event-county');
+    const filterCountySelect = document.getElementById('event-filter-county');
+
+    if (countySelect) {
+      countySelect.innerHTML = '<option value="">Select County...</option>';
+      Object.entries(COUNTY_NAME_MAP)
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([fips, name]) => {
+          const option = document.createElement('option');
+          option.value = fips;
+          option.textContent = name;
+          countySelect.appendChild(option);
+        });
+    }
+
+    if (filterCountySelect && filterCountySelect.children.length <= 1) {
+      filterCountySelect.innerHTML = '<option value="">All Counties</option>';
+      Object.entries(COUNTY_NAME_MAP)
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([fips, name]) => {
+          const option = document.createElement('option');
+          option.value = fips;
+          option.textContent = name;
+          filterCountySelect.appendChild(option);
+        });
+    }
+  }
+
+  // ============================================
+  // EVENTS DISPLAY (County/City Pages)
+  // ============================================
+
+  getCountyEvents(fipsCode) {
+    const now = new Date();
+    return EVENTS_DATA
+      .filter(evt => evt.countyFips === fipsCode && evt.isActive)
+      .filter(evt => !evt.startDate || new Date(evt.startDate) >= now || evt.recurrencePattern)
+      .sort((a, b) => {
+        if (!a.startDate) return 1;
+        if (!b.startDate) return -1;
+        return new Date(a.startDate) - new Date(b.startDate);
+      });
+  }
+
+  getCityEvents(fipsCode, citySlug) {
+    const now = new Date();
+    return EVENTS_DATA
+      .filter(evt =>
+        evt.countyFips === fipsCode &&
+        evt.isActive &&
+        (!evt.citySlug || evt.citySlug === citySlug)
+      )
+      .filter(evt => !evt.startDate || new Date(evt.startDate) >= now || evt.recurrencePattern)
+      .sort((a, b) => {
+        if (!a.startDate) return 1;
+        if (!b.startDate) return -1;
+        return new Date(a.startDate) - new Date(b.startDate);
+      });
+  }
+
+  renderEventsSection(events) {
+    if (events.length === 0) {
+      return '<p class="empty-state">No upcoming events.</p>';
+    }
+
+    const grouped = this.groupEventsByType(events);
+    let html = '';
+
+    const typeIcons = {
+      community: '🎉',
+      business: '🏪',
+      historical: '📜',
+      outdoor: '🏔️'
+    };
+
+    const typeNames = {
+      community: 'Community Events',
+      business: 'Business Events',
+      historical: 'Historical Events & Facts',
+      outdoor: 'Outdoor Activities'
+    };
+
+    for (const [type, typeEvents] of Object.entries(grouped)) {
+      html += `<div class="event-type-section">
+        <h4>${typeIcons[type]} ${typeNames[type]}</h4>
+        ${typeEvents.map(evt => this.renderEventCard(evt)).join('')}
+      </div>`;
+    }
+
+    return html;
+  }
+
+  renderEventCard(event) {
+    const dateStr = event.startDate
+      ? this.formatEventDate(event.startDate, event.endDate, event.recurrencePattern)
+      : '';
+
+    return `
+      <div class="event-card">
+        ${event.featured ? '<span class="event-badge">Featured</span>' : ''}
+        <h5>${event.name}</h5>
+        <p class="event-description">${event.description}</p>
+        ${dateStr ? `<p class="event-date">📅 ${dateStr}</p>` : ''}
+        ${event.price ? `<p class="event-price">💵 ${event.price}</p>` : ''}
+        ${event.address ? `<p class="event-date">📍 ${event.address}</p>` : ''}
+        ${event.website ? `<a href="${event.website}" target="_blank" class="event-link">Learn More →</a>` : ''}
+      </div>
+    `;
+  }
+
+  formatEventDate(start, end, recurrence) {
+    if (!start) return '';
+
+    const startDate = new Date(start);
+    const endDate = end ? new Date(end) : null;
+
+    if (recurrence === 'annual') {
+      return `Annual - ${startDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`;
+    }
+
+    if (recurrence === 'monthly') {
+      return `Monthly - ${startDate.toLocaleDateString('en-US', { day: 'numeric' })}`;
+    }
+
+    if (recurrence === 'weekly') {
+      return `Weekly - ${startDate.toLocaleDateString('en-US', { weekday: 'long' })}`;
+    }
+
+    if (endDate) {
+      return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+    }
+
+    return startDate.toLocaleDateString();
+  }
+
+  groupEventsByType(events) {
+    return events.reduce((acc, evt) => {
+      if (!acc[evt.type]) acc[evt.type] = [];
+      acc[evt.type].push(evt);
+      return acc;
+    }, {});
   }
 
 }

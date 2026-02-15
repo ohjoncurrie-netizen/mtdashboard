@@ -22,6 +22,12 @@ window.COUNTY_DATA = JSON.parse(localStorage.getItem('countyData')) || {};
 // Each city can have: description, activities, highlights, website, elevation, population
 window.CITY_DATA = JSON.parse(localStorage.getItem('cityData')) || {};
 
+// Events data storage - array of event objects
+// Each event has: id, name, type, description, countyFips, citySlug, startDate, endDate,
+// isRecurring, recurrencePattern, website, contactEmail, contactPhone, address, price,
+// createdAt, updatedAt, isActive, featured
+window.EVENTS_DATA = JSON.parse(localStorage.getItem('eventsData')) || [];
+
 // Montana cities by county (FIPS code)
 window.COUNTY_CITIES = {
   '30001': ['Kalispell', 'Whitefish', 'Columbia Falls', 'Bigfork'],
