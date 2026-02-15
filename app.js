@@ -536,6 +536,12 @@ class MTApp {
       businessBtn.addEventListener('click', () => this.toggleBusinessForm());
     }
     
+    // HUD toggle button
+    const hudToggleBtn = document.getElementById('hud-toggle-btn');
+    if (hudToggleBtn) {
+      hudToggleBtn.addEventListener('click', () => this.toggleHUDPanel());
+    }
+    
     // Admin button
     const adminBtn = document.getElementById('admin-btn');
     if (adminBtn) {
@@ -2032,6 +2038,13 @@ class MTApp {
     });
     
     return facts;
+  }
+
+  toggleHUDPanel() {
+    const hudPanel = document.getElementById('hud-panel');
+    if (hudPanel) {
+      hudPanel.classList.toggle('hidden');
+    }
   }
 
   // ============================================
