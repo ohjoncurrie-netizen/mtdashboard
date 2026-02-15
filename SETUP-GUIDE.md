@@ -1,160 +1,243 @@
-# 🚀 Quick Start Guide - Montana Educational Map Landing Page
+# Montana County Explorer - Setup Guide
 
-## What I've Created
+## Overview
 
-I've built a **professional, modern SaaS-style landing page** for your Montana Educational Map with:
+Montana County Explorer is an interactive educational map application for exploring Montana's 56 counties, cities, businesses, and events. It features a discussion board with awards and member ranking system to encourage community engagement.
 
-✅ **Dark Mode Design** - Deep slate background (#0f172a) with Montana Pine & Sky Blue accents  
-✅ **Bento Box Grid Layout** - Modern feature showcase  
-✅ **Smooth Animations** - Using Framer Motion  
-✅ **Fully Responsive** - Mobile-first design  
-✅ **Professional Typography** - Inter font stack  
-✅ **React + Tailwind CSS** - Modern tech stack  
+## Features
 
-## 📋 Prerequisites
+- **Interactive Map**: Leaflet-powered map with county boundaries and custom layers
+- **County & City Pages**: Detailed information about Montana's counties and cities
+- **Business Directory**: Add and manage local businesses with geocoding
+- **Events System**: Track community, business, historical, and outdoor events
+- **Discussion Board**: Community discussions with categories and search
+- **Awards System**: 8 achievement badges for community contributions
+- **Member Rankings**: Leaderboard showing top contributors
+- **Admin Panel**: Manage all content with a password-protected admin interface
 
-Before you can run the landing page, you need:
+## Quick Start
 
-1. **Node.js** (version 18 or higher)
-   - Download from: https://nodejs.org/
-   - Choose the LTS version
-   - This includes npm (Node Package Manager)
+### Prerequisites
 
-## 🎯 Setup Instructions
+- Node.js 18 or higher
+- npm (comes with Node.js)
+- Git
+- A GitHub account (for deployment)
 
-### Step 1: Install Node.js
-1. Go to https://nodejs.org/
-2. Download the LTS version
-3. Run the installer
-4. Verify installation by opening a new terminal and running:
+### Local Development
+
+1. **Clone the repository**
    ```bash
-   node --version
-   npm --version
+   git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+   cd YOUR_REPO
    ```
 
-### Step 2: Install Dependencies
-Once Node.js is installed, run:
-```bash
-npm install
-```
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-This will install:
-- React 18
-- Tailwind CSS
-- Framer Motion
-- Lucide React (icons)
-- Vite (build tool)
+3. **Start development server**
+   ```bash
+   npm run dev
+   ```
 
-### Step 3: Start Development Server
-```bash
-npm run dev
-```
+4. **Open in browser**
+   Navigate to `http://localhost:3000`
 
-Your landing page will open at `http://localhost:3000`
+### Production Build
 
-### Step 4: Build for Production
-When ready to deploy:
 ```bash
 npm run build
 ```
 
-The optimized files will be in the `dist` folder.
+This creates a `dist/` folder with all production-ready files.
 
-## 📁 Files Created
+## Deployment to GitHub Pages
+
+### Step 1: Enable GitHub Pages
+
+1. Go to your repository on GitHub
+2. Navigate to **Settings** → **Pages**
+3. Under "Build and deployment", select **GitHub Actions** as the source
+4. The workflow will automatically deploy on push to `main`
+
+### Step 2: Configure Custom Domain (Optional)
+
+If you have a custom domain:
+
+1. Update the `CNAME` file with your domain name
+2. In GitHub repo settings → Pages, add your custom domain
+3. Enable "Enforce HTTPS"
+
+### Step 3: Push Changes
+
+```bash
+git add .
+git commit -m "Your commit message"
+git push origin main
+```
+
+The GitHub Actions workflow will automatically:
+- Install dependencies
+- Build the project
+- Deploy to GitHub Pages
+
+## Configuration
+
+### Firebase (Optional)
+
+For cloud data persistence, configure Firebase:
+
+1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
+2. Enable Firestore Database and Authentication
+3. Update `firebase-config.js` with your project credentials:
+
+```javascript
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+```
+
+Without Firebase, the app uses localStorage for data persistence.
+
+### Google Maps API
+
+The app uses Google Maps Geocoding API for business address lookup:
+
+1. Get an API key from [Google Cloud Console](https://console.cloud.google.com)
+2. Enable the Geocoding API
+3. Update the API key in `index.html`:
+
+```html
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=geometry&callback=initGoogleMaps"></script>
+```
+
+### Admin Panel
+
+Default admin password: `admin123`
+
+To change the password, update `config.js`:
+
+```javascript
+window.ADMIN_CONFIG = {
+  password: 'your-secure-password'
+};
+```
+
+## Project Structure
 
 ```
-├── LandingPage.jsx           # Main React component
-├── index-landing.html        # HTML entry point
-├── src/
-│   ├── main.jsx             # React app initialization
-│   └── index.css            # Tailwind CSS imports
-├── package.json             # Dependencies
-├── tailwind.config.js       # Tailwind configuration
-├── vite.config.js           # Vite build configuration
-├── postcss.config.js        # PostCSS configuration
-├── .eslintrc.cjs            # Code linting rules
-├── .gitignore               # Git ignore rules
-└── README-LANDING.md        # Documentation
-
+├── index.html              # Main HTML file
+├── app.js                  # Core application logic
+├── config.js               # Data structures and configuration
+├── firebase-config.js      # Firebase/localStorage data service
+├── styles.css              # Base styling
+├── modern-enhancements.css # Premium UI enhancements
+├── simple_montana.geojson  # Montana county boundaries
+├── vite.config.js          # Build configuration
+├── package.json            # Dependencies
+├── CNAME                   # Custom domain (if applicable)
+└── .github/
+    └── workflows/
+        └── static.yml      # GitHub Pages deployment workflow
 ```
 
-## 🎨 Design Features
+## Discussion Board & Awards
 
-### Navigation
-- Minimalist top bar
-- GitHub icon link (links to your repo)
-- "Launch Map" CTA button (links to `index.html`)
+### Categories
+- 🦌 Wildlife & Nature
+- 📜 History & Culture
+- 🏔️ Hiking & Outdoor
+- 🏘️ Cities & Towns
+- 🪨 Geology & Geography
+- 💡 Local Tips & Advice
+- 🗨️ General Discussion
 
-### Hero Section
-- Large gradient headline: "Explore Montana's Rich History"
-- Mesh gradient background with Montana colors
-- Two CTAs: "Start Exploring" and "View Documentation"
+### Awards System
 
-### Social Proof Strip
-- 9+ Interactive Layers
-- 100+ Historic Locations
-- Open Data Sources
-- 100% Free for Educators
+| Award | Icon | Points | Requirement |
+|-------|------|--------|-------------|
+| Montana Expert | 🏆 | 100 | 10+ quality posts |
+| Helpful Contributor | 🤝 | 50 | 5+ helpful replies |
+| Wildlife Whisperer | 🦌 | 75 | Wildlife insights |
+| History Buff | 📜 | 75 | Historical knowledge |
+| Trail Advocate | 🥾 | 50 | Hiking/outdoor tips |
+| Community Champion | ⭐ | 150 | 50+ contributions |
+| Knowledge Seeker | 🎓 | 25 | Insightful questions |
+| Regional Master | 🗺️ | 100 | Multi-region expertise |
 
-### Feature Grid (Bento Box)
-1. **Interactive Layers** (Large card) - Showcases watersheds, peaks, wildlife, historic sites
-2. **Historical Data** - Lewis & Clark Trail, Native American lands
-3. **Classroom Ready** - Educational features for grades 4-12
-4. **Open Source** - GitHub integration
+### Point System
+- Wildlife/History/Geology posts: 15 points
+- Hiking posts: 10 points
+- Other posts: 5 points
+- Helpful vote received: +5 points
 
-### Footer
-- Resource links
-- Connect links
-- "Built in Montana" badge
+## Explorer Layers
 
-## 🔗 Integration with Existing Map
+Toggle these map layers to explore Montana:
 
-The landing page links to your existing map (`index.html`) via:
-- "Launch Map" button in navigation
-- "Start Exploring" button in hero
-- "Launch Interactive Map" in CTA section
+- 🌊 Watersheds & Rivers
+- 🐻 Grizzly Bear Territory
+- ⛰️ Mountain Peaks (10k+)
+- 🛤️ Lewis & Clark Trail
+- 🏛️ Native American Lands
+- 👻 Ghost Towns
+- ⛏️ Historic Mines
+- 🌾 Agricultural Regions
+- 💨 Wind Farms
+- 🌿 Nature Hot Spots
+- 🌲 National Forests
+- 🦌 Wildlife Viewing Areas
+- 🛣️ Scenic Byways
+- ♨️ Geothermal Features
+- 🏔️ Wilderness Areas
+- 🪨 Geological Wonders
 
-## 🌐 Deployment Options
+## Troubleshooting
 
-### Option 1: GitHub Pages (Free)
-1. Build the project: `npm run build`
-2. Deploy the `dist` folder to GitHub Pages
+### Build fails with "vite not found"
+```bash
+npm install
+npm run build
+```
 
-### Option 2: Vercel (Free, Recommended)
-1. Push to GitHub
-2. Import project on vercel.com
-3. Auto-deploys on every push
+### Map doesn't load
+- Check browser console for errors
+- Verify Leaflet CSS/JS are loading
+- Ensure GeoJSON file exists
 
-### Option 3: Netlify (Free)
-1. Push to GitHub
-2. Import project on netlify.com
-3. Configure build command: `npm run build`
-4. Configure publish directory: `dist`
+### Data not persisting
+- Check localStorage is enabled in browser
+- For Firebase, verify credentials in firebase-config.js
+- Check browser console for Firebase errors
 
-## 🎯 Next Steps
+### GitHub Pages 404
+- Ensure GitHub Pages is enabled in repo settings
+- Check that the workflow completed successfully
+- Verify CNAME matches your domain (if using custom domain)
 
-1. **Install Node.js** if you haven't already
-2. **Run `npm install`** to get all dependencies
-3. **Run `npm run dev`** to see your landing page
-4. **Customize** colors, text, or features as needed
-5. **Deploy** to your preferred hosting platform
+## Contributing
 
-## 💡 Tips
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -m "Add your feature"`
+4. Push to branch: `git push origin feature/your-feature`
+5. Open a Pull Request
 
-- The landing page is completely separate from your existing map
-- You can use `index-landing.html` as your homepage
-- All buttons link back to your existing `index.html` map
-- The design is fully customizable via `LandingPage.jsx`
-- Colors can be adjusted in `tailwind.config.js`
+## License
 
-## 🆘 Need Help?
+MIT License - See LICENSE file for details.
 
-If you encounter any issues:
-1. Make sure Node.js is installed: `node --version`
-2. Delete `node_modules` and run `npm install` again
-3. Check that all files are in the correct locations
-4. Ensure you're running commands from the project root directory
+## Support
+
+For issues or questions, open a GitHub issue or contact the maintainers.
 
 ---
 
-**Ready to launch!** 🚀 Once you install Node.js, you'll have a professional landing page for your Montana Educational Map!
+Built with ❤️ for Montana

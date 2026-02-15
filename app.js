@@ -535,6 +535,18 @@ class MTApp {
     if (businessBtn) {
       businessBtn.addEventListener('click', () => this.toggleBusinessForm());
     }
+
+    // Discussion button
+    const discussionBtn = document.getElementById('discussion-btn');
+    if (discussionBtn) {
+      discussionBtn.addEventListener('click', () => this.toggleDiscussionBoard());
+    }
+    
+    // HUD toggle button
+    const hudToggleBtn = document.getElementById('hud-toggle-btn');
+    if (hudToggleBtn) {
+      hudToggleBtn.addEventListener('click', () => this.toggleHUDPanel());
+    }
     
     // Admin button
     const adminBtn = document.getElementById('admin-btn');
@@ -707,6 +719,303 @@ class MTApp {
     if (formSection) {
       formSection.style.display = formSection.style.display === 'none' ? 'block' : 'none';
     }
+  }
+
+  toggleDiscussionBoard() {
+    const mapSection = document.getElementById('map-section');
+    const discussionSection = document.getElementById('discussion-section');
+    
+    if (discussionSection) {
+      // Hide map, show discussion
+      if (discussionSection.style.display === 'none') {
+        discussionSection.style.display = 'block';
+        if (mapSection) mapSection.style.display = 'none';
+        this.initializeDiscussionBoard();
+      } else {
+        discussionSection.style.display = 'none';
+        if (mapSection) mapSection.style.display = 'block';
+      }
+    }
+  }
+
+  initializeDiscussionBoard() {
+    // Setup discussion form
+    const discussionForm = document.getElementById('discussion-post-form');
+    if (discussionForm) {
+      discussionForm.addEventListener('submit', (e) => this.handleDiscussionPost(e));
+    }
+
+    // Setup filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this.filterDiscussions(e.target.dataset.filter));
+    });
+
+    // Setup search
+    const searchInput = document.getElementById('discussion-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => this.searchDiscussions(e.target.value));
+    }
+
+    // Close button
+    const closeBtn = document.getElementById('discussion-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this.toggleDiscussionBoard());
+    }
+
+    // Render initial discussions
+    this.renderDiscussions();
+    this.updateLeaderboard();
+  }
+
+  async handleDiscussionPost(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('discussion-username').value.trim();
+    const topic = document.getElementById('discussion-topic').value.trim();
+    const message = document.getElementById('discussion-message').value.trim();
+    const category = document.getElementById('discussion-category').value;
+
+    if (!username || !topic || !message || !category) {
+      this.showNotification('❌ Please fill in all fields', 'error');
+      return;
+    }
+
+    // Create post object
+    const post = {
+      id: `post_${Date.now()}`,
+      username: username,
+      topic: topic,
+      message: message,
+      category: category,
+      timestamp: new Date().toISOString(),
+      helpful: 0,
+      replies: [],
+      points: 0
+    };
+
+    // Award points based on category expertise
+    if (category === 'wildlife') post.points = 15;
+    else if (category === 'history') post.points = 15;
+    else if (category === 'hiking') post.points = 10;
+    else if (category === 'geology') post.points = 15;
+    else post.points = 5;
+
+    // Add to discussions
+    DISCUSSION_POSTS.unshift(post);
+    localStorage.setItem('discussionPosts', JSON.stringify(DISCUSSION_POSTS));
+
+    // Update or create member profile
+    if (!MEMBER_PROFILES[username]) {
+      MEMBER_PROFILES[username] = {
+        name: username,
+        totalPoints: 0,
+        postCount: 0,
+        awards: []
+      };
+    }
+    MEMBER_PROFILES[username].totalPoints += post.points;
+    MEMBER_PROFILES[username].postCount += 1;
+    localStorage.setItem('memberProfiles', JSON.stringify(MEMBER_PROFILES));
+
+    // Check for awards
+    this.awardMembersForActivity(username);
+
+    this.showNotification(`✅ Discussion posted! You earned ${post.points} points!`, 'success');
+    e.target.reset();
+    this.renderDiscussions();
+    this.updateLeaderboard();
+  }
+
+  getCategoryEmoji(category) {
+    const categoryMaps = {
+      'wildlife': '🦌',
+      'history': '📜',
+      'hiking': '🏔️',
+      'cities': '🏘️',
+      'geology': '🪨',
+      'tips': '💡',
+      'general': '🗨️'
+    };
+    return categoryMaps[category] || '🗨️';
+  }
+
+  getCategoryLabel(category) {
+    const labels = {
+      'wildlife': 'Wildlife & Nature',
+      'history': 'History & Culture',
+      'hiking': 'Hiking & Outdoor',
+      'cities': 'Cities & Towns',
+      'geology': 'Geology & Geography',
+      'tips': 'Local Tips',
+      'general': 'General'
+    };
+    return labels[category] || 'General';
+  }
+
+  renderDiscussions(filter = 'all', searchTerm = '') {
+    const list = document.getElementById('discussions-list');
+    if (!list) return;
+
+    let filtered = DISCUSSION_POSTS;
+
+    // Filter by category
+    if (filter !== 'all') {
+      filtered = filtered.filter(p => p.category === filter);
+    }
+
+    // Filter by search term
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.topic.toLowerCase().includes(term) ||
+        p.message.toLowerCase().includes(term) ||
+        p.username.toLowerCase().includes(term)
+      );
+    }
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<p class="empty-state">No discussions found.</p>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(post => `
+      <div class="discussion-post">
+        <div class="post-header">
+          <div class="post-author">
+            <span class="post-author-name">${this.escapeHtml(post.username)}</span>
+            <span class="post-author-rank">${this.getMemberRank(post.username)}</span>
+          </div>
+          <span class="post-time">${this.formatDate(post.timestamp)}</span>
+        </div>
+        <span class="post-category-badge">${this.getCategoryEmoji(post.category)} ${this.getCategoryLabel(post.category)}</span>
+        <h3 class="post-topic">${this.escapeHtml(post.topic)}</h3>
+        <div class="post-content">${this.escapeHtml(post.message)}</div>
+        <div class="post-stats">
+          <div class="stat-item">👍 <span>${post.helpful || 0} Helpful</span></div>
+          <div class="stat-item">⭐ <span>${post.points} Points</span></div>
+          <div class="stat-item">💬 <span>${post.replies ? post.replies.length : 0} Replies</span></div>
+        </div>
+        <div class="post-actions">
+          <button class="action-btn" onclick="mtApp.markPostHelpful('${post.id}')">👍 Helpful</button>
+          <button class="action-btn" onclick="mtApp.togglePostReplies('${post.id}')">💬 Reply</button>
+        </div>
+        <div id="replies-${post.id}" class="post-replies" style="display: none;"></div>
+      </div>
+    `).join('');
+  }
+
+  markPostHelpful(postId) {
+    const post = DISCUSSION_POSTS.find(p => p.id === postId);
+    if (post) {
+      post.helpful = (post.helpful || 0) + 1;
+      post.points = (post.points || 0) + 5;
+      
+      // Award helpful contributor badge
+      this.awardMembersForActivity(post.username);
+      
+      localStorage.setItem('discussionPosts', JSON.stringify(DISCUSSION_POSTS));
+      this.showNotification('✅ Marked as helpful! Author earned bonus points', 'success');
+      this.renderDiscussions();
+      this.updateLeaderboard();
+    }
+  }
+
+  togglePostReplies(postId) {
+    const repliesContainer = document.getElementById(`replies-${postId}`);
+    if (repliesContainer) {
+      repliesContainer.style.display = repliesContainer.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+
+  filterDiscussions(category) {
+    // Update active button
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    // Find and activate the clicked button
+    if (event && event.target) {
+      event.target.classList.add('active');
+    }
+    
+    this.renderDiscussions(category);
+  }
+
+  searchDiscussions(term) {
+    const activeFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
+    this.renderDiscussions(activeFilter, term);
+  }
+
+  updateLeaderboard() {
+    const leaderboard = document.getElementById('leaderboard');
+    if (!leaderboard) return;
+
+    const members = Object.values(MEMBER_PROFILES)
+      .sort((a, b) => b.totalPoints - a.totalPoints)
+      .slice(0, 10);
+
+    if (members.length === 0) {
+      leaderboard.innerHTML = '<p class="empty-state">No members yet</p>';
+      return;
+    }
+
+    leaderboard.innerHTML = members.map((member, index) => `
+      <div class="member-item">
+        <span class="member-rank">#${index + 1}</span>
+        <span class="member-name">${this.escapeHtml(member.name)}</span>
+        <span class="member-points">${member.totalPoints} pts • ${member.postCount} posts</span>
+      </div>
+    `).join('');
+  }
+
+  awardMembersForActivity(username) {
+    if (!MEMBER_PROFILES[username]) return;
+
+    const member = MEMBER_PROFILES[username];
+    const currentAwards = member.awards || [];
+
+    // Check for award eligibility
+    if (member.postCount >= 10 && !currentAwards.includes('montana_expert')) {
+      member.awards.push('montana_expert');
+      this.showNotification(`🏆 ${username} earned the "Montana Expert" award!`, 'success');
+    }
+    if (member.totalPoints >= 200 && !currentAwards.includes('community_champion')) {
+      member.awards.push('community_champion');
+      this.showNotification(`⭐ ${username} earned the "Community Champion" award!`, 'success');
+    }
+
+    localStorage.setItem('memberProfiles', JSON.stringify(MEMBER_PROFILES));
+  }
+
+  getMemberRank(username) {
+    const member = MEMBER_PROFILES[username];
+    if (!member) return '👤 Member';
+    if (member.awards?.includes('community_champion')) return '⭐ Champion';
+    if (member.awards?.includes('montana_expert')) return '🏆 Expert';
+    if (member.totalPoints >= 100) return '⭐ Star Member';
+    if (member.totalPoints >= 50) return '✨ Active Member';
+    return '👤 Member';
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  formatDate(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
   }
 
   toggleSidebar() {
@@ -1851,6 +2160,90 @@ class MTApp {
         ],
         color: '#87CEEB',
         fact: 'Montana has one of the best wind energy potentials in the US, with capacity to power millions of homes!'
+      },
+      'nature-hotspots': {
+        name: 'Nature Hot Spots',
+        features: [
+          { name: 'Glacier National Park', lat: 48.5, lng: -113.8, radius: 50000 },
+          { name: 'Yellowstone National Park', lat: 45.0, lng: -110.5, radius: 60000 },
+          { name: 'Beartooth Scenic Highway', lat: 45.4, lng: -109.8 },
+          { name: 'Mission Mountains', lat: 47.7, lng: -113.8, radius: 30000 },
+          { name: 'Bob Marshall Wilderness', lat: 47.9, lng: -112.5, radius: 45000 }
+        ],
+        color: '#228B22',
+        fact: 'Montana\'s nature hot spots attract millions of visitors annually to experience pristine wilderness and incredible biodiversity!'
+      },
+      'national-forests': {
+        name: 'National Forests',
+        features: [
+          { name: 'Flathead National Forest', lat: 48.0, lng: -113.5, radius: 70000 },
+          { name: 'Kootenai National Forest', lat: 48.5, lng: -115.5, radius: 50000 },
+          { name: 'Gallatin National Forest', lat: 45.3, lng: -110.5, radius: 60000 },
+          { name: 'Bitterroot National Forest', lat: 46.0, lng: -113.8, radius: 55000 },
+          { name: 'Custer National Forest', lat: 45.4, lng: -109.0, radius: 35000 }
+        ],
+        color: '#2D5016',
+        fact: 'Montana contains nearly 19 million acres of National Forest land - perfect for hiking, camping, and outdoor recreation!'
+      },
+      'wildlife-viewing': {
+        name: 'Wildlife Viewing Areas',
+        features: [
+          { name: 'National Bison Range', lat: 47.8, lng: -114.1 },
+          { name: 'Rocky Mountain Elk Foundation', lat: 47.9, lng: -113.9 },
+          { name: 'Lee Metcalf Refuge', lat: 46.8, lng: -113.6 },
+          { name: 'Medicine Lake National Wildlife Refuge', lat: 48.5, lng: -104.5 },
+          { name: 'Charles M. Russell NWR', lat: 48.5, lng: -107.5, radius: 80000 }
+        ],
+        color: '#FF6B35',
+        fact: 'Montana is one of the best destinations in North America for wildlife viewing - home to bears, elk, buffalo, and eagles!'
+      },
+      'scenic-byways': {
+        name: 'Scenic Byways & Drives',
+        features: [
+          { name: 'Going-to-the-Sun Road', lat: 48.4, lng: -113.8 },
+          { name: 'Beartooth Highway', lat: 45.4, lng: -109.8 },
+          { name: 'Kings Hill Scenic Byway', lat: 46.8, lng: -110.9 },
+          { name: 'Elkhorn Scenic Loop', lat: 46.6, lng: -112.7 },
+          { name: 'Paradise Valley Loop', lat: 46.7, lng: -111.3 }
+        ],
+        color: '#FF8C42',
+        fact: 'Montana\'s scenic byways offer some of the most stunning drives in America, with mountain vistas and pristine wilderness!'
+      },
+      'geothermal': {
+        name: 'Geothermal Features',
+        features: [
+          { name: 'Mammoth Hot Springs', lat: 44.9741, lng: -110.8442 },
+          { name: 'Norris Geyser Basin', lat: 44.7320, lng: -110.7086 },
+          { name: 'White Mountain Hot Springs', lat: 45.8, lng: -110.4 },
+          { name: 'Broadwater Hot Springs', lat: 46.6, lng: -111.9 },
+          { name: 'Ennis Hot Springs', lat: 45.3, lng: -111.7 }
+        ],
+        color: '#FF4500',
+        fact: 'Montana lies along the northern edge of the world\'s largest geothermal zone - Yellowstone Super Volcano!'
+      },
+      'wilderness-areas': {
+        name: 'Protected Wilderness Areas',
+        features: [
+          { name: 'Abel Tasman Wilderness', lat: 45.7, lng: -112.0, radius: 35000 },
+          { name: 'Anaconda-Pintlar Wilderness', lat: 45.9, lng: -112.8, radius: 40000 },
+          { name: 'Beartooth Absaroka Wilderness', lat: 45.2, lng: -109.5, radius: 50000 },
+          { name: 'Cabinet Mountains Wilderness', lat: 47.8, lng: -114.0, radius: 30000 },
+          { name: 'Gates of the Mountains Wilderness', lat: 46.9, lng: -111.4, radius: 25000 }
+        ],
+        color: '#1B4D3E',
+        fact: 'Montana protects over 3.5 million acres of designated Wilderness - pristine backcountry for solitude and adventure!'
+      },
+      'geological-wonders': {
+        name: 'Geological Wonders',
+        features: [
+          { name: 'Giant Springs', lat: 47.5, lng: -111.3 },
+          { name: 'The Pinnacles', lat: 48.3, lng: -115.1 },
+          { name: 'Makoshika State Park', lat: 48.3, lng: -105.0 },
+          { name: 'Missouri River Breaks', lat: 47.8, lng: -109.5, radius: 50000 },
+          { name: 'Medicine Rocks State Park', lat: 48.5, lng: -105.3 }
+        ],
+        color: '#8B7355',
+        fact: 'Montana\'s geological features reveal 2 billion years of Earth\'s history - from ancient granite to colorful badlands!'
       }
     };
   }
@@ -2032,6 +2425,13 @@ class MTApp {
     });
     
     return facts;
+  }
+
+  toggleHUDPanel() {
+    const hudPanel = document.getElementById('hud-panel');
+    if (hudPanel) {
+      hudPanel.classList.toggle('hidden');
+    }
   }
 
   // ============================================
