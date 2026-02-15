@@ -101,6 +101,87 @@
       return { success: true };
     }
 
+    getCurrentUser() {
+      if (this.useFirebase) {
+        return auth.currentUser;
+      }
+      // localStorage fallback - return mock user if logged in
+      const isLoggedIn = JSON.parse(localStorage.getItem('adminConfig') || '{}').isLoggedIn;
+      if (isLoggedIn) {
+        return { email: 'admin@local', uid: 'local' };
+      }
+      return null;
+    }
+
+    // ── User Management ──
+    async getUserList() {
+      if (this.useFirebase) {
+        try {
+          const snap = await db.collection('users').get();
+          const users = [];
+          snap.forEach(doc => {
+            users.push({ uid: doc.id, ...doc.data() });
+          });
+          return users;
+        } catch (err) {
+          console.error('Error fetching users:', err);
+          return [];
+        }
+      }
+      // localStorage fallback - return single admin user
+      return [{
+        uid: 'local',
+        email: 'admin@local',
+        role: 'admin',
+        displayName: 'Local Admin',
+        createdAt: new Date().toISOString()
+      }];
+    }
+
+    async createUser(email, password, displayName, role = 'admin') {
+      if (this.useFirebase) {
+        try {
+          // Note: Creating users from client-side requires admin SDK or Cloud Function
+          // For now, we'll store user metadata and they can sign up manually
+          // A better approach would be to use a Cloud Function
+          const currentUser = auth.currentUser;
+
+          // Create user metadata in Firestore
+          const userId = `user_${Date.now()}`;
+          await db.collection('users').doc(userId).set({
+            email,
+            role,
+            displayName: displayName || email.split('@')[0],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: currentUser ? currentUser.uid : 'system',
+            pendingActivation: true,
+            tempPassword: password // They should change this on first login
+          });
+
+          return {
+            success: true,
+            message: 'User invited. They should sign up with this email and password.'
+          };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      }
+      // localStorage doesn't support multiple users
+      return { success: false, error: 'Multi-user not supported in localStorage mode. Configure Firebase.' };
+    }
+
+    async deleteUser(userId) {
+      if (this.useFirebase) {
+        try {
+          await db.collection('users').doc(userId).delete();
+          return { success: true };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      }
+      return { success: false, error: 'Cannot delete users in localStorage mode.' };
+    }
+
     // ── County Data ──
     async getCountyData(fipsCode) {
       if (this.useFirebase) {
@@ -190,6 +271,140 @@
         }
       }
       localStorage.setItem('mtBusinesses', JSON.stringify(businesses));
+    }
+
+    // ── Events ──
+    async getEvents(filters = {}) {
+      let events = [];
+
+      if (this.useFirebase) {
+        let query = db.collection('events');
+
+        // Apply filters if provided
+        if (filters.countyFips) {
+          query = query.where('countyFips', '==', filters.countyFips);
+        }
+        if (filters.citySlug) {
+          query = query.where('citySlug', '==', filters.citySlug);
+        }
+        if (filters.type) {
+          query = query.where('type', '==', filters.type);
+        }
+        if (filters.isActive !== undefined) {
+          query = query.where('isActive', '==', filters.isActive);
+        }
+
+        const snap = await query.get();
+        snap.forEach(doc => {
+          events.push({ id: doc.id, ...doc.data() });
+        });
+      } else {
+        events = JSON.parse(localStorage.getItem('eventsData')) || [];
+
+        // Apply filters manually for localStorage
+        if (filters.countyFips) {
+          events = events.filter(e => e.countyFips === filters.countyFips);
+        }
+        if (filters.citySlug) {
+          events = events.filter(e => e.citySlug === filters.citySlug);
+        }
+        if (filters.type) {
+          events = events.filter(e => e.type === filters.type);
+        }
+        if (filters.isActive !== undefined) {
+          events = events.filter(e => e.isActive === filters.isActive);
+        }
+      }
+
+      return events;
+    }
+
+    async getAllEvents() {
+      if (this.useFirebase) {
+        const snap = await db.collection('events').get();
+        const events = [];
+        snap.forEach(doc => {
+          events.push({ id: doc.id, ...doc.data() });
+        });
+        return events;
+      }
+      return JSON.parse(localStorage.getItem('eventsData')) || [];
+    }
+
+    async getEventsByCounty(fipsCode) {
+      return this.getEvents({ countyFips: fipsCode, isActive: true });
+    }
+
+    async getEventsByCity(fipsCode, citySlug) {
+      if (this.useFirebase) {
+        const snap = await db.collection('events')
+          .where('countyFips', '==', fipsCode)
+          .where('isActive', '==', true)
+          .get();
+
+        const events = [];
+        snap.forEach(doc => {
+          const data = { id: doc.id, ...doc.data() };
+          // Include county-wide events (no citySlug) or city-specific events
+          if (!data.citySlug || data.citySlug === citySlug) {
+            events.push(data);
+          }
+        });
+        return events;
+      }
+
+      const allEvents = JSON.parse(localStorage.getItem('eventsData')) || [];
+      return allEvents.filter(e =>
+        e.countyFips === fipsCode &&
+        e.isActive &&
+        (!e.citySlug || e.citySlug === citySlug)
+      );
+    }
+
+    async saveEvent(eventData) {
+      // Generate ID if new event
+      if (!eventData.id) {
+        eventData.id = `evt_${Date.now()}`;
+      }
+
+      // Add/update timestamps
+      if (this.useFirebase) {
+        if (!eventData.createdAt) {
+          eventData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        }
+        eventData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+
+        await db.collection('events').doc(eventData.id).set(eventData, { merge: true });
+      }
+
+      // Always sync to localStorage
+      const all = JSON.parse(localStorage.getItem('eventsData')) || [];
+      const idx = all.findIndex(e => e.id === eventData.id);
+
+      // Add timestamp for localStorage
+      if (!eventData.createdAt) {
+        eventData.createdAt = new Date().toISOString();
+      }
+      eventData.updatedAt = new Date().toISOString();
+
+      if (idx >= 0) {
+        all[idx] = eventData;
+      } else {
+        all.push(eventData);
+      }
+      localStorage.setItem('eventsData', JSON.stringify(all));
+
+      return eventData;
+    }
+
+    async deleteEvent(eventId) {
+      if (this.useFirebase) {
+        await db.collection('events').doc(eventId).delete();
+      }
+
+      const all = JSON.parse(localStorage.getItem('eventsData')) || [];
+      const filtered = all.filter(e => e.id !== eventId);
+      localStorage.setItem('eventsData', JSON.stringify(filtered));
     }
   }
 
