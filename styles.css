@@ -1144,6 +1144,136 @@ textarea:focus {
   box-shadow: 0 4px 8px rgba(139, 69, 19, 0.2);
 }
 
+/* ===== County Directory ===== */
+.directory-section .card {
+  padding: 2rem;
+}
+
+.directory-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.directory-controls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.directory-controls .search-input {
+  max-width: 400px;
+  flex: 1;
+}
+
+.directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.directory-card {
+  display: block;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, var(--parchment-light), var(--parchment-mid));
+  border: 2px solid var(--wood-dark);
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--ink-dark);
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.directory-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px var(--shadow);
+  border-color: var(--accent-gold);
+}
+
+.directory-card h4 {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  color: var(--wood-dark);
+  margin: 0 0 0.5rem 0;
+  letter-spacing: 0.5px;
+}
+
+.directory-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--ink-light);
+}
+
+.directory-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ===== City Page ===== */
+.city-page .city-card {
+  padding: 2rem;
+}
+
+.city-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.city-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.city-county-label {
+  font-size: 1rem;
+  color: var(--ink-light);
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+.city-description {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+.city-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.city-section {
+  margin-bottom: 2rem;
+}
+
+.city-section h3 {
+  font-size: 1.2rem;
+}
+
+.city-activities,
+.city-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.city-activities em,
+.city-highlights em {
+  color: var(--ink-light);
+  font-size: 0.95rem;
+}
+
 /* ===== Layer Controller ===== */
 .layer-controller {
   position: absolute;
