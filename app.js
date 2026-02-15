@@ -11,6 +11,8 @@ class MTApp {
     this.businessMarkers = [];
     this.allCounties = [];
     this.currentEditingCounty = null;
+    this.layers = {}; // Store map layers
+    this.layerData = this.initializeLayerData(); // Initialize layer data
   }
 
   async init() {
@@ -26,6 +28,10 @@ class MTApp {
     
     // Load county boundaries
     await this.loadCountyBoundaries();
+    
+    // Initialize layer controller and HUD
+    this.initializeLayerController();
+    this.initializeHUD();
     
     // Setup event listeners
     this.setupEventListeners();
@@ -952,6 +958,290 @@ class MTApp {
     });
     localStorage.setItem('mtBusinesses', JSON.stringify(BUSINESSES));
   }
+
+  // ===== Layer Controller Methods =====
+  
+  initializeLayerData() {
+    return {
+      watersheds: {
+        name: 'Watersheds',
+        features: [
+          { name: 'Missouri River Basin', lat: 47.5, lng: -111.0, type: 'polygon' },
+          { name: 'Yellowstone River Basin', lat: 46.0, lng: -108.5, type: 'polygon' },
+          { name: 'Columbia River Basin', lat: 47.8, lng: -114.5, type: 'polygon' }
+        ],
+        color: '#4A90E2',
+        fact: 'Montana is the only state that drains to three different oceans: the Pacific, Atlantic, and Hudson Bay!'
+      },
+      grizzly: {
+        name: 'Grizzly Bear Ranges',
+        features: [
+          { name: 'Northern Continental Divide Ecosystem', lat: 48.5, lng: -113.5, radius: 50000 },
+          { name: 'Greater Yellowstone Ecosystem', lat: 45.0, lng: -110.5, radius: 40000 }
+        ],
+        color: '#8B4513',
+        fact: 'Montana\'s grizzly population is around 1,900 bears, making it one of the best habitats in the lower 48 states!'
+      },
+      peaks: {
+        name: 'Major Mountain Peaks',
+        features: [
+          { name: 'Granite Peak (12,807 ft)', lat: 45.1634, lng: -109.8075 },
+          { name: 'Mount Wood (12,649 ft)', lat: 45.1689, lng: -109.8442 },
+          { name: 'Castle Mountain (12,612 ft)', lat: 45.1456, lng: -109.8206 },
+          { name: 'Whitetail Peak (12,551 ft)', lat: 45.1292, lng: -109.8561 },
+          { name: 'Mount Peal (12,395 ft)', lat: 45.1178, lng: -109.8978 }
+        ],
+        color: '#696969',
+        fact: 'Granite Peak is Montana\'s highest point at 12,807 feet and requires technical climbing skills to summit!'
+      },
+      'lewis-clark': {
+        name: 'Lewis & Clark Trail',
+        features: [
+          { name: 'Great Falls Portage', lat: 47.5053, lng: -111.2977 },
+          { name: 'Three Forks', lat: 45.8924, lng: -111.5502 },
+          { name: 'Lemhi Pass', lat: 44.6869, lng: -113.4097 },
+          { name: 'Travelers\' Rest', lat: 46.8126, lng: -114.0899 },
+          { name: 'Camp Disappointment', lat: 48.8333, lng: -112.5833 }
+        ],
+        color: '#D2691E',
+        fact: 'Lewis and Clark spent more time in Montana than any other state - from April 1805 to August 1806!'
+      },
+      'native-lands': {
+        name: 'Native American Ancestral Lands',
+        features: [
+          { name: 'Blackfeet Nation', lat: 48.5, lng: -113.0, radius: 50000 },
+          { name: 'Crow Nation', lat: 45.5, lng: -107.5, radius: 40000 },
+          { name: 'Salish & Kootenai', lat: 47.5, lng: -114.0, radius: 35000 },
+          { name: 'Northern Cheyenne', lat: 45.6, lng: -106.5, radius: 30000 },
+          { name: 'Assiniboine & Sioux', lat: 48.2, lng: -105.5, radius: 35000 }
+        ],
+        color: '#CD853F',
+        fact: 'Montana is home to seven Indian reservations, representing 12 distinct tribal nations with rich cultural heritage!'
+      },
+      'ghost-towns': {
+        name: 'Historic Ghost Towns',
+        features: [
+          { name: 'Bannack', lat: 45.1617, lng: -112.9994 },
+          { name: 'Virginia City', lat: 45.2938, lng: -111.9428 },
+          { name: 'Garnet', lat: 46.8833, lng: -113.3667 },
+          { name: 'Coolidge', lat: 45.8833, lng: -109.7167 },
+          { name: 'Granite', lat: 46.5667, lng: -113.3833 }
+        ],
+        color: '#A9A9A9',
+        fact: 'Bannack was Montana\'s first territorial capital in 1864, now a well-preserved ghost town with over 50 structures!'
+      },
+      mines: {
+        name: 'Active Mines',
+        features: [
+          { name: 'Stillwater Mine (Platinum)', lat: 45.4833, lng: -109.8833 },
+          { name: 'Montana Tunnels (Gold)', lat: 46.2833, lng: -111.8500 },
+          { name: 'Golden Sunlight (Gold)', lat: 45.8167, lng: -112.0667 }
+        ],
+        color: '#FFD700',
+        fact: 'The Stillwater Mine produces platinum and palladium - Montana is one of only two places in the US where platinum is mined!'
+      },
+      agriculture: {
+        name: 'Agriculture Zones',
+        features: [
+          { name: 'Golden Triangle (Wheat)', lat: 48.0, lng: -110.5, radius: 60000 },
+          { name: 'Gallatin Valley (Diversified)', lat: 45.7, lng: -111.0, radius: 30000 },
+          { name: 'Yellowstone Valley (Sugar Beets)', lat: 46.3, lng: -108.0, radius: 45000 }
+        ],
+        color: '#90EE90',
+        fact: 'Montana\'s "Golden Triangle" produces over 40% of the state\'s wheat - one of the most productive wheat regions in the world!'
+      },
+      'wind-farms': {
+        name: 'Wind Energy Farms',
+        features: [
+          { name: 'Rim Rock Wind Farm', lat: 47.7667, lng: -111.5833 },
+          { name: 'Glacier Wind Farm', lat: 48.2833, lng: -111.4167 },
+          { name: 'Spion Kop Wind Farm', lat: 47.8333, lng: -111.5000 }
+        ],
+        color: '#87CEEB',
+        fact: 'Montana has one of the best wind energy potentials in the US, with capacity to power millions of homes!'
+      }
+    };
+  }
+
+  initializeLayerController() {
+    // Layer toggle button
+    const layerToggleBtn = document.getElementById('layer-toggle-btn');
+    const layerController = document.querySelector('.layer-controller');
+    
+    if (layerToggleBtn && layerController) {
+      layerToggleBtn.addEventListener('click', () => {
+        layerController.classList.toggle('collapsed');
+      });
+    }
+    
+    // Layer checkboxes
+    const layerCheckboxes = document.querySelectorAll('.layer-checkbox');
+    layerCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const layerName = e.target.dataset.layer;
+        if (e.target.checked) {
+          this.addLayer(layerName);
+        } else {
+          this.removeLayer(layerName);
+        }
+      });
+    });
+  }
+
+  addLayer(layerName) {
+    const layerInfo = this.layerData[layerName];
+    if (!layerInfo || this.layers[layerName]) return;
+    
+    const layerGroup = L.layerGroup();
+    
+    layerInfo.features.forEach(feature => {
+      if (feature.radius) {
+        // Create circle for area features
+        const circle = L.circle([feature.lat, feature.lng], {
+          color: layerInfo.color,
+          fillColor: layerInfo.color,
+          fillOpacity: 0.2,
+          radius: feature.radius,
+          weight: 2
+        }).bindPopup(`<strong>${feature.name}</strong><br>${layerInfo.name}`);
+        
+        circle.addTo(layerGroup);
+      } else {
+        // Create marker for point features
+        const marker = L.circleMarker([feature.lat, feature.lng], {
+          color: layerInfo.color,
+          fillColor: layerInfo.color,
+          fillOpacity: 0.7,
+          radius: 8,
+          weight: 2
+        }).bindPopup(`<strong>${feature.name}</strong><br>${layerInfo.name}`);
+        
+        marker.addTo(layerGroup);
+      }
+    });
+    
+    layerGroup.addTo(this.map);
+    this.layers[layerName] = layerGroup;
+    
+    // Update HUD with layer fact
+    this.updateHUD(layerInfo.fact, layerInfo.name);
+  }
+
+  removeLayer(layerName) {
+    if (this.layers[layerName]) {
+      this.map.removeLayer(this.layers[layerName]);
+      delete this.layers[layerName];
+    }
+  }
+
+  // ===== HUD Methods =====
+  
+  initializeHUD() {
+    const hudClose = document.getElementById('hud-close');
+    const hudPanel = document.getElementById('hud-panel');
+    
+    if (hudClose && hudPanel) {
+      hudClose.addEventListener('click', () => {
+        hudPanel.classList.add('hidden');
+      });
+    }
+    
+    // Update HUD based on map movement
+    this.map.on('moveend', () => {
+      this.updateHUDBasedOnLocation();
+    });
+  }
+
+  updateHUD(fact, location = 'Montana') {
+    const hudContent = document.getElementById('hud-content');
+    const hudLocation = document.getElementById('hud-location');
+    const hudPanel = document.getElementById('hud-panel');
+    
+    if (hudContent && hudLocation && hudPanel) {
+      hudContent.innerHTML = `<p>${fact}</p>`;
+      hudLocation.textContent = location;
+      hudPanel.classList.remove('hidden');
+    }
+  }
+
+  updateHUDBasedOnLocation() {
+    const center = this.map.getCenter();
+    const facts = this.getRegionalFacts(center.lat, center.lng);
+    
+    if (facts.length > 0) {
+      const randomFact = facts[Math.floor(Math.random() * facts.length)];
+      this.updateHUD(randomFact.fact, randomFact.region);
+    }
+  }
+
+  getRegionalFacts(lat, lng) {
+    const facts = [];
+    
+    // Western Montana
+    if (lng < -112) {
+      facts.push({
+        region: 'Western Montana',
+        fact: 'This region is home to Glacier National Park, featuring over 700 miles of trails and stunning mountain scenery!'
+      });
+      facts.push({
+        region: 'Western Montana',
+        fact: 'The Bitterroot Valley was the site of the first permanent settlement by non-indigenous people in Montana in 1841.'
+      });
+    }
+    
+    // Central Montana
+    if (lng >= -112 && lng < -108) {
+      facts.push({
+        region: 'Central Montana',
+        fact: 'The Continental Divide runs through this region - water on one side flows to the Pacific, the other to the Atlantic!'
+      });
+      facts.push({
+        region: 'Central Montana',
+        fact: 'Great Falls has the most powerful freshwater waterfalls in the United States!'
+      });
+    }
+    
+    // Eastern Montana
+    if (lng >= -108) {
+      facts.push({
+        region: 'Eastern Montana',
+        fact: 'The Yellowstone River is the longest free-flowing river in the lower 48 states at 692 miles!'
+      });
+      facts.push({
+        region: 'Eastern Montana',
+        fact: 'Montana produces over 28% of U.S. coal, with most mines located in the southeastern region!'
+      });
+    }
+    
+    // Northern Montana
+    if (lat > 47.5) {
+      facts.push({
+        region: 'Northern Montana',
+        fact: 'The northern border with Canada spans 545 miles, the longest international border for any U.S. state!'
+      });
+    }
+    
+    // Southern Montana
+    if (lat <= 45.5) {
+      facts.push({
+        region: 'Southern Montana',
+        fact: 'Yellowstone National Park (mostly in Wyoming) extends into Montana\'s southern border!'
+      });
+    }
+    
+    // General Montana facts
+    facts.push({
+      region: 'Montana',
+      fact: 'Montana has the largest migrating elk herd in the nation, with over 150,000 elk!'
+    });
+    facts.push({
+      region: 'Montana',
+      fact: 'The state fossil is the duck-billed dinosaur - over 14 species of dinosaurs have been discovered here!'
+    });
+    
+    return facts;
+  }
+
 }
 
 // Initialize app when DOM is ready

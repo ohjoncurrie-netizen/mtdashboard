@@ -289,6 +289,76 @@
           <p class="map-description">Click any county to view details</p>
         </div>
         <div id="map"></div>
+        
+        <!-- Layer Controller -->
+        <div class="layer-controller" id="layer-controller">
+          <div class="layer-header">
+            <h3>🗺️ Explorer Layers</h3>
+            <button class="layer-toggle-btn" id="layer-toggle-btn">◀</button>
+          </div>
+          
+          <div class="layer-group">
+            <h4>🌲 Nature</h4>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="watersheds">
+              <span>💧 Watersheds</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="grizzly">
+              <span>🐻 Grizzly Ranges</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="peaks">
+              <span>⛰️ Mountain Peaks</span>
+            </label>
+          </div>
+          
+          <div class="layer-group">
+            <h4>📜 History</h4>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="lewis-clark">
+              <span>🛶 Lewis & Clark Trail</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="native-lands">
+              <span>🏛️ Native Ancestral Lands</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="ghost-towns">
+              <span>👻 Ghost Towns</span>
+            </label>
+          </div>
+          
+          <div class="layer-group">
+            <h4>🏭 Industry</h4>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="mines">
+              <span>⛏️ Active Mines</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="agriculture">
+              <span>🌾 Agriculture Zones</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="wind-farms">
+              <span>💨 Wind Farms</span>
+            </label>
+          </div>
+        </div>
+        
+        <!-- Interactive HUD -->
+        <div class="hud-panel" id="hud-panel">
+          <div class="hud-header">
+            <span class="hud-title">💡 Did You Know?</span>
+            <button class="hud-close" id="hud-close">×</button>
+          </div>
+          <div class="hud-content" id="hud-content">
+            <p>Explore the map to discover fascinating facts about Montana's regions, history, and natural wonders!</p>
+          </div>
+          <div class="hud-footer">
+            <span class="hud-location" id="hud-location">Montana</span>
+          </div>
+        </div>
       </section>
 
       <!-- Information Grid -->
