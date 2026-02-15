@@ -18,6 +18,10 @@ window.BUSINESSES = JSON.parse(localStorage.getItem('mtBusinesses')) || [
 // County data storage - editable via admin panel
 window.COUNTY_DATA = JSON.parse(localStorage.getItem('countyData')) || {};
 
+// City data storage – keyed by "{fips}_{city-slug}"
+// Each city can have: description, activities, highlights, website, elevation, population
+window.CITY_DATA = JSON.parse(localStorage.getItem('cityData')) || {};
+
 // Montana cities by county (FIPS code)
 window.COUNTY_CITIES = {
   '30001': ['Kalispell', 'Whitefish', 'Columbia Falls', 'Bigfork'],

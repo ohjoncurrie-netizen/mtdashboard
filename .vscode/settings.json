@@ -1,5 +1,6 @@
 {
     "chat.agentSessionProjection.enabled": true,
     "chat.checkpoints.showFileChanges": true,
-    "chat.customAgentInSubagent.enabled": true
+    "chat.customAgentInSubagent.enabled": true,
+    "claudeCodeChat.permissions.yoloMode": true
 }

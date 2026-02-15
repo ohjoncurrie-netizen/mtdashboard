@@ -310,6 +310,48 @@ h1 {
   flex-wrap: wrap;
 }
 
+/* ===== Breadcrumbs ===== */
+.breadcrumb-section {
+  margin-bottom: 1.5rem;
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--wood-dark);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--parchment-light), var(--parchment-mid));
+  box-shadow: 0 4px 12px var(--shadow);
+  font-family: var(--font-body);
+}
+
+.breadcrumb a {
+  color: var(--wood-dark);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb .breadcrumb-current {
+  color: var(--ink-dark);
+  font-weight: 700;
+}
+
+.breadcrumb .breadcrumb-link.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.breadcrumb .breadcrumb-sep {
+  color: var(--ink-light);
+}
+
 .nav-btn {
   background: linear-gradient(135deg, var(--parchment-light), var(--parchment-mid));
   color: var(--ink-dark);
@@ -360,6 +402,82 @@ main {
   display: flex;
   flex-direction: column;
   gap: 3rem;
+}
+
+/* ===== County Page ===== */
+.county-page .county-card {
+  padding: 2rem;
+}
+
+.county-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.county-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.county-description {
+  font-size: 1.05rem;
+  margin-bottom: 1.5rem;
+}
+
+.county-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.county-meta-item {
+  background: var(--parchment-light);
+  border: 1px solid var(--wood-dark);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+.county-meta-item span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink-light);
+  margin-bottom: 0.25rem;
+}
+
+.county-meta-item a {
+  color: var(--wood-dark);
+  text-decoration: underline;
+  word-break: break-word;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.city-chip {
+  background: var(--parchment-light);
+  border: 1px solid var(--wood-dark);
+  color: var(--wood-dark);
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.city-chip:hover {
+  background: var(--wood-dark);
+  color: var(--parchment-light);
 }
 
 section {

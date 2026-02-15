@@ -26,6 +26,7 @@
       <h3>Quick Links</h3>
       <ul>
         <li><a href="#map-section" class="sidebar-link">View Map</a></li>
+        <li><a href="#" id="sidebar-directory" class="sidebar-link">Browse Counties</a></li>
         <li><a href="#" id="sidebar-admin" class="sidebar-link">Admin Panel</a></li>
         <li><a href="#" id="sidebar-business" class="sidebar-link">Business Directory</a></li>
         <li><a href="https://511.mt.gov/" target="_blank" class="sidebar-link">Road Conditions</a></li>
@@ -81,7 +82,9 @@
         <p class="subtitle">Interactive Historical Map</p>
       </div>
       <nav class="header-nav">
+      <!-- Header nav with directory button -->
         <button id="sidebar-toggle" class="nav-btn menu-btn">☰ Menu</button>
+        <button id="directory-btn" class="nav-btn">Browse Counties</button>
         <button id="umap-btn" class="nav-btn">Toggle Counties</button>
         <button id="business-btn" class="nav-btn">Business Directory</button>
         <button id="admin-btn" class="nav-btn">Admin Panel</button>
@@ -90,18 +93,96 @@
     </header>
 
     <main>
+      <!-- Breadcrumbs -->
+      <section class="breadcrumb-section" id="breadcrumb-section">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <a href="#/montana" id="breadcrumb-montana">Montana</a>
+          <span class="breadcrumb-sep" id="breadcrumb-sep-county">/</span>
+          <a href="#/montana" id="breadcrumb-county" class="breadcrumb-link disabled">County</a>
+          <span class="breadcrumb-sep" id="breadcrumb-sep-city">/</span>
+          <span id="breadcrumb-city" class="breadcrumb-current">City</span>
+        </nav>
+      </section>
+
+      <!-- County Directory -->
+      <section class="directory-section" id="directory-section" style="display: none;">
+        <div class="card">
+          <div class="directory-header">
+            <h2>Browse Montana Counties</h2>
+            <div class="directory-controls">
+              <input type="text" id="directory-search" class="search-input" placeholder="Search counties...">
+              <button class="nav-btn" id="directory-back-map">Back to Map</button>
+            </div>
+          </div>
+          <div class="directory-grid" id="directory-grid">
+            <p class="empty-state">Loading counties...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- County Page -->
+      <section class="county-page" id="county-page" style="display: none;">
+        <div class="card county-card">
+          <div class="county-header">
+            <h2 id="county-page-title">County</h2>
+            <div class="county-actions">
+              <button class="nav-btn" id="county-back-map">Back to Map</button>
+              <button class="nav-btn" id="county-open-admin">Edit in Admin</button>
+            </div>
+          </div>
+          <p id="county-page-description" class="county-description"></p>
+          <div class="county-meta" id="county-meta"></div>
+          <div class="county-cities">
+            <h3>Cities & Towns</h3>
+            <div id="county-cities-list" class="chip-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- City Page (full page, replaces modal for deep links) -->
+      <section class="city-page" id="city-page" style="display: none;">
+        <div class="card city-card">
+          <div class="city-header">
+            <h2 id="city-page-title">City</h2>
+            <div class="city-actions">
+              <button class="nav-btn" id="city-back-county">Back to County</button>
+              <button class="nav-btn" id="city-open-admin">Edit City</button>
+            </div>
+          </div>
+          <p id="city-page-county-label" class="city-county-label"></p>
+          <p id="city-page-description" class="city-description"></p>
+          <div class="city-meta" id="city-meta"></div>
+          <div class="city-section">
+            <h3>Activities & Attractions</h3>
+            <p id="city-page-activities" class="city-activities"></p>
+          </div>
+          <div class="city-section">
+            <h3>Highlights</h3>
+            <p id="city-page-highlights" class="city-highlights"></p>
+          </div>
+          <div class="city-section">
+            <h3>Local Businesses</h3>
+            <div id="city-page-businesses" class="businesses-list"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- Admin Panel -->
       <section class="admin-section" id="admin-section" style="display: none;">
         <!-- Login Screen -->
         <div class="card admin-login" id="admin-login">
           <h2>Admin Login</h2>
           <form id="admin-login-form">
+            <div class="form-group" id="admin-email-group" style="display: none;">
+              <label>Email</label>
+              <input type="email" id="admin-email" placeholder="admin@example.com">
+            </div>
             <div class="form-group">
               <label>Password</label>
               <input type="password" id="admin-password" placeholder="Enter admin password" required>
             </div>
             <button type="submit" class="submit-btn">Login</button>
-            <p class="form-note">Default password: admin123</p>
+            <p class="form-note" id="admin-login-note">Default password: admin123</p>
           </form>
         </div>
 
@@ -118,6 +199,7 @@
             
             <div class="admin-tabs">
               <button class="admin-tab active" data-tab="counties">Edit Counties</button>
+              <button class="admin-tab" data-tab="cities">Edit Cities</button>
               <button class="admin-tab" data-tab="settings">Settings</button>
             </div>
 
@@ -129,6 +211,27 @@
               
               <div class="county-list" id="county-list">
                 <p class="empty-state">Loading counties...</p>
+              </div>
+            </div>
+
+            <!-- Cities Tab -->
+            <div class="admin-tab-content" id="tab-cities" style="display: none;">
+              <div class="admin-search">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>County</label>
+                    <select id="city-admin-county" class="search-input">
+                      <option value="">Select County...</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Search</label>
+                    <input type="text" id="city-admin-search" placeholder="Search cities..." class="search-input">
+                  </div>
+                </div>
+              </div>
+              <div class="county-list" id="city-list">
+                <p class="empty-state">Select a county to see its cities.</p>
               </div>
             </div>
 
@@ -146,6 +249,61 @@
                 <button type="submit" class="submit-btn">Update Password</button>
               </form>
             </div>
+          </div>
+        </div>
+
+        <!-- City Edit Modal -->
+        <div class="modal" id="city-edit-modal" style="display: none;">
+          <div class="modal-content card">
+            <div class="modal-header">
+              <h3 id="modal-city-name">Edit City</h3>
+              <button class="modal-close" id="city-modal-close-btn">&times;</button>
+            </div>
+            <form id="city-edit-form">
+              <input type="hidden" id="edit-city-fips">
+              <input type="hidden" id="edit-city-slug">
+
+              <div class="form-group">
+                <label>City Name (Read-only)</label>
+                <input type="text" id="edit-city-display-name" disabled>
+              </div>
+
+              <div class="form-group">
+                <label>Description</label>
+                <textarea id="edit-city-description" rows="4" placeholder="Add a description about this city..."></textarea>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Population</label>
+                  <input type="text" id="edit-city-population" placeholder="e.g., 53,293">
+                </div>
+                <div class="form-group">
+                  <label>Elevation</label>
+                  <input type="text" id="edit-city-elevation" placeholder="e.g., 4,820 ft">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Website URL</label>
+                <input type="url" id="edit-city-website" placeholder="https://example.com">
+              </div>
+
+              <div class="form-group">
+                <label>Activities (comma-separated)</label>
+                <input type="text" id="edit-city-activities" placeholder="Skiing, Hiking, Fishing">
+              </div>
+
+              <div class="form-group">
+                <label>Highlights (comma-separated)</label>
+                <input type="text" id="edit-city-highlights" placeholder="State University, Museum, etc.">
+              </div>
+
+              <div class="modal-footer">
+                <button type="button" class="nav-btn" id="city-modal-cancel-btn">Cancel</button>
+                <button type="submit" class="submit-btn">Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
 
@@ -390,6 +548,11 @@
     </footer>
   </div>
 
+  <!-- Firebase compat SDK (only loaded if you configure firebase-config.js) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

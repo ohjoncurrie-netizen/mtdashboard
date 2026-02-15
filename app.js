@@ -3,6 +3,28 @@ function initGoogleMaps() {
   window.googleMapsLoaded = true;
 }
 
+const COUNTY_NAME_MAP = {
+  '30001': 'Beaverhead County', '30003': 'Big Horn County', '30005': 'Blaine County',
+  '30007': 'Broadwater County', '30009': 'Carbon County', '30011': 'Carter County',
+  '30013': 'Cascade County', '30015': 'Chouteau County', '30017': 'Custer County',
+  '30019': 'Daniels County', '30021': 'Dawson County', '30023': 'Deer Lodge County',
+  '30025': 'Fallon County', '30027': 'Fergus County', '30029': 'Flathead County',
+  '30031': 'Gallatin County', '30033': 'Garfield County', '30035': 'Glacier County',
+  '30037': 'Golden Valley County', '30039': 'Granite County', '30041': 'Hill County',
+  '30043': 'Jefferson County', '30045': 'Judith Basin County', '30047': 'Lake County',
+  '30049': 'Lewis and Clark County', '30051': 'Liberty County', '30053': 'Lincoln County',
+  '30055': 'McCone County', '30057': 'Madison County', '30059': 'Meagher County',
+  '30061': 'Mineral County', '30063': 'Missoula County', '30065': 'Musselshell County',
+  '30067': 'Park County', '30069': 'Petroleum County', '30071': 'Phillips County',
+  '30073': 'Pondera County', '30075': 'Powder River County', '30077': 'Powell County',
+  '30079': 'Prairie County', '30081': 'Ravalli County', '30083': 'Richland County',
+  '30085': 'Roosevelt County', '30087': 'Rosebud County', '30089': 'Sanders County',
+  '30091': 'Sheridan County', '30093': 'Silver Bow County', '30095': 'Stillwater County',
+  '30097': 'Sweet Grass County', '30099': 'Teton County', '30101': 'Toole County',
+  '30103': 'Treasure County', '30105': 'Valley County', '30107': 'Wheatland County',
+  '30109': 'Wibaux County', '30111': 'Yellowstone County'
+};
+
 class MTApp {
   constructor() {
     this.map = null;
@@ -11,8 +33,15 @@ class MTApp {
     this.businessMarkers = [];
     this.allCounties = [];
     this.currentEditingCounty = null;
-    this.layers = {}; // Store map layers
-    this.layerData = this.initializeLayerData(); // Initialize layer data
+    this.currentEditingCity = null;
+    this.currentCounty = null;
+    this.currentCity = null;
+    this.pendingCountyEdit = null;
+    this.layers = {};
+    this.layerData = this.initializeLayerData();
+    this.countySlugToFips = this.buildCountySlugMap();
+    this.isUpdatingHash = false;
+    this.ds = window.dataService; // Data service (Firebase or localStorage)
   }
 
   async init() {
@@ -50,6 +79,21 @@ class MTApp {
     
     // Update footer timestamp
     this.updateTimestamp();
+
+    // Setup county directory
+    this.buildCountyDirectory();
+
+    // Show email field if Firebase is active
+    if (this.ds && this.ds.isFirebase()) {
+      const emailGroup = document.getElementById('admin-email-group');
+      const loginNote = document.getElementById('admin-login-note');
+      if (emailGroup) emailGroup.style.display = 'block';
+      if (loginNote) loginNote.textContent = 'Use your Firebase admin email & password.';
+    }
+
+    // Handle any deep links
+    this.handleRouteFromHash();
+    window.addEventListener('hashchange', () => this.handleRouteFromHash());
     
     console.log('✅ Montana County Explorer initialized');
   }
@@ -158,28 +202,6 @@ class MTApp {
       
       console.log(`Found ${montanaCounties.features.length} Montana counties`);
       
-      // County name mapping (FIPS code to county name)
-      const countyNames = {
-        '30001': 'Beaverhead County', '30003': 'Big Horn County', '30005': 'Blaine County',
-        '30007': 'Broadwater County', '30009': 'Carbon County', '30011': 'Carter County',
-        '30013': 'Cascade County', '30015': 'Chouteau County', '30017': 'Custer County',
-        '30019': 'Daniels County', '30021': 'Dawson County', '30023': 'Deer Lodge County',
-        '30025': 'Fallon County', '30027': 'Fergus County', '30029': 'Flathead County',
-        '30031': 'Gallatin County', '30033': 'Garfield County', '30035': 'Glacier County',
-        '30037': 'Golden Valley County', '30039': 'Granite County', '30041': 'Hill County',
-        '30043': 'Jefferson County', '30045': 'Judith Basin County', '30047': 'Lake County',
-        '30049': 'Lewis and Clark County', '30051': 'Liberty County', '30053': 'Lincoln County',
-        '30055': 'McCone County', '30057': 'Madison County', '30059': 'Meagher County',
-        '30061': 'Mineral County', '30063': 'Missoula County', '30065': 'Musselshell County',
-        '30067': 'Park County', '30069': 'Petroleum County', '30071': 'Phillips County',
-        '30073': 'Pondera County', '30075': 'Powder River County', '30077': 'Powell County',
-        '30079': 'Prairie County', '30081': 'Ravalli County', '30083': 'Richland County',
-        '30085': 'Roosevelt County', '30087': 'Rosebud County', '30089': 'Sanders County',
-        '30091': 'Sheridan County', '30093': 'Silver Bow County', '30095': 'Stillwater County',
-        '30097': 'Sweet Grass County', '30099': 'Teton County', '30101': 'Toole County',
-        '30103': 'Treasure County', '30105': 'Valley County', '30107': 'Wheatland County',
-        '30109': 'Wibaux County', '30111': 'Yellowstone County'
-      };
       
       // Create a GeoJSON layer with click functionality
       this.countyLayer = L.geoJSON(montanaCounties, {
@@ -194,7 +216,7 @@ class MTApp {
         onEachFeature: (feature, layer) => {
           // Get county name from FIPS code
           const fipsCode = feature.id || feature.properties.FIPS || feature.properties.GEO_ID;
-          const countyName = countyNames[fipsCode] || `County ${fipsCode}`;
+          const countyName = COUNTY_NAME_MAP[fipsCode] || `County ${fipsCode}`;
           
           // Highlight on hover
           layer.on('mouseover', function() {
@@ -222,6 +244,12 @@ class MTApp {
               <h3>📍 ${countyName}</h3>
               <p style="margin: 8px 0; color: var(--ink-dark);">
                 <strong>FIPS:</strong> ${fipsCode}
+              </p>
+              <p style="margin: 10px 0;">
+                <a href="#" onclick="window.mtApp.openCountyPage('${fipsCode}', '${countyName}'); return false;"
+                   style="color: var(--wood-dark); text-decoration: underline; font-weight: 600;">
+                  Open County Page
+                </a>
               </p>
           `;
           
@@ -367,6 +395,7 @@ class MTApp {
     // Sidebar navigation links
     const sidebarAdmin = document.getElementById('sidebar-admin');
     const sidebarBusiness = document.getElementById('sidebar-business');
+    const sidebarDirectory = document.getElementById('sidebar-directory');
     
     if (sidebarAdmin) {
       sidebarAdmin.addEventListener('click', (e) => {
@@ -383,7 +412,33 @@ class MTApp {
         this.toggleBusinessForm();
       });
     }
+
+    if (sidebarDirectory) {
+      sidebarDirectory.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.closeSidebar();
+        this.showDirectory();
+      });
+    }
     
+    // Directory button in header
+    const directoryBtn = document.getElementById('directory-btn');
+    if (directoryBtn) {
+      directoryBtn.addEventListener('click', () => this.showDirectory());
+    }
+
+    // Directory search
+    const directorySearch = document.getElementById('directory-search');
+    if (directorySearch) {
+      directorySearch.addEventListener('input', (e) => this.filterDirectory(e.target.value));
+    }
+
+    // Directory back
+    const directoryBack = document.getElementById('directory-back-map');
+    if (directoryBack) {
+      directoryBack.addEventListener('click', () => this.showMapView());
+    }
+
     // Business form submit
     const businessForm = document.getElementById('business-form');
     if (businessForm) {
@@ -396,7 +451,7 @@ class MTApp {
       countySelect.addEventListener('change', (e) => this.updateCityDropdown(e.target.value));
     }
     
-    // City modal close
+    // City modal close (map popup modal)
     const cityModalClose = document.getElementById('city-modal-close');
     const cityModalBack = document.getElementById('city-modal-back');
     if (cityModalClose) {
@@ -404,6 +459,42 @@ class MTApp {
     }
     if (cityModalBack) {
       cityModalBack.addEventListener('click', () => this.closeCityModal());
+    }
+
+    // County page actions
+    const countyBack = document.getElementById('county-back-map');
+    const countyEdit = document.getElementById('county-open-admin');
+
+    if (countyBack) {
+      countyBack.addEventListener('click', () => this.showMapView());
+    }
+
+    if (countyEdit) {
+      countyEdit.addEventListener('click', () => {
+        if (this.currentCounty) {
+          this.openAdminForCounty(this.currentCounty.fips, this.currentCounty.name);
+        }
+      });
+    }
+
+    // City page actions
+    const cityBackCounty = document.getElementById('city-back-county');
+    const cityEditBtn = document.getElementById('city-open-admin');
+
+    if (cityBackCounty) {
+      cityBackCounty.addEventListener('click', () => {
+        if (this.currentCounty) {
+          this.openCountyPage(this.currentCounty.fips, this.currentCounty.name);
+        }
+      });
+    }
+
+    if (cityEditBtn) {
+      cityEditBtn.addEventListener('click', () => {
+        if (this.currentCity && this.currentCounty) {
+          this.openAdminForCity(this.currentCounty.fips, this.currentCity.name);
+        }
+      });
     }
     
     // UMap button
@@ -441,10 +532,22 @@ class MTApp {
       tab.addEventListener('click', (e) => this.switchAdminTab(e.target.dataset.tab));
     });
     
-    // County search
+    // County search (admin panel)
     const countySearch = document.getElementById('county-search');
     if (countySearch) {
       countySearch.addEventListener('input', (e) => this.filterCounties(e.target.value));
+    }
+
+    // City admin county selector
+    const cityAdminCounty = document.getElementById('city-admin-county');
+    if (cityAdminCounty) {
+      cityAdminCounty.addEventListener('change', (e) => this.loadCityList(e.target.value));
+    }
+
+    // City admin search
+    const cityAdminSearch = document.getElementById('city-admin-search');
+    if (cityAdminSearch) {
+      cityAdminSearch.addEventListener('input', (e) => this.filterCityList(e.target.value));
     }
     
     // County edit form
@@ -452,8 +555,14 @@ class MTApp {
     if (countyEditForm) {
       countyEditForm.addEventListener('submit', (e) => this.handleCountyUpdate(e));
     }
+
+    // City edit form
+    const cityEditForm = document.getElementById('city-edit-form');
+    if (cityEditForm) {
+      cityEditForm.addEventListener('submit', (e) => this.handleCityUpdate(e));
+    }
     
-    // Modal close buttons
+    // Modal close buttons (county)
     const modalCloseBtn = document.getElementById('modal-close-btn');
     const modalCancelBtn = document.getElementById('modal-cancel-btn');
     if (modalCloseBtn) {
@@ -461,6 +570,16 @@ class MTApp {
     }
     if (modalCancelBtn) {
       modalCancelBtn.addEventListener('click', () => this.closeModal());
+    }
+
+    // Modal close buttons (city)
+    const cityModalCloseBtn = document.getElementById('city-modal-close-btn');
+    const cityModalCancelBtn = document.getElementById('city-modal-cancel-btn');
+    if (cityModalCloseBtn) {
+      cityModalCloseBtn.addEventListener('click', () => this.closeCityEditModal());
+    }
+    if (cityModalCancelBtn) {
+      cityModalCancelBtn.addEventListener('click', () => this.closeCityEditModal());
     }
     
     // Admin settings form
@@ -494,12 +613,12 @@ class MTApp {
     const overlay = document.getElementById('sidebar-overlay');
     
     if (sidebar && overlay) {
-      const isOpen = sidebar.classList.contains('open');
+      const isOpen = sidebar.classList.contains('active');
       
       if (isOpen) {
         this.closeSidebar();
       } else {
-        sidebar.classList.add('open');
+        sidebar.classList.add('active');
         overlay.classList.add('active');
       }
     }
@@ -510,7 +629,7 @@ class MTApp {
     const overlay = document.getElementById('sidebar-overlay');
     
     if (sidebar && overlay) {
-      sidebar.classList.remove('open');
+      sidebar.classList.remove('active');
       overlay.classList.remove('active');
     }
   }
@@ -533,54 +652,102 @@ class MTApp {
   }
 
   openCityPage(cityName, countyName, fipsCode) {
-    const modal = document.getElementById('city-modal');
-    const title = document.getElementById('city-modal-title');
-    const countyInfo = document.getElementById('city-county-info');
-    const businessList = document.getElementById('city-businesses-list');
-    const cityNameSpan = document.getElementById('city-name-businesses');
-    
-    if (!modal) return;
-    
-    // Set city info
-    title.textContent = cityName;
-    countyInfo.textContent = `${countyName} • FIPS: ${fipsCode}`;
-    cityNameSpan.textContent = cityName;
-    
-    // Filter businesses by city
-    const cityBusinesses = BUSINESSES.filter(b => 
+    this.currentCounty = { fips: fipsCode, name: countyName };
+    this.currentCity = { name: cityName };
+    this.renderCityPage(cityName, countyName, fipsCode);
+    this.showCityPage();
+    this.setBreadcrumb({ countyName, cityName });
+    this.setHash(`/montana/${this.slugify(countyName)}/${this.slugify(cityName)}`);
+  }
+
+  renderCityPage(cityName, countyName, fipsCode) {
+    const titleEl = document.getElementById('city-page-title');
+    const countyLabel = document.getElementById('city-page-county-label');
+    const descriptionEl = document.getElementById('city-page-description');
+    const metaEl = document.getElementById('city-meta');
+    const activitiesEl = document.getElementById('city-page-activities');
+    const highlightsEl = document.getElementById('city-page-highlights');
+    const businessesEl = document.getElementById('city-page-businesses');
+
+    if (!titleEl) return;
+
+    const citySlug = this.slugify(cityName);
+    const key = `${fipsCode}_${citySlug}`;
+    const cityData = CITY_DATA[key] || {};
+
+    titleEl.textContent = cityName;
+    countyLabel.textContent = `${countyName} · Montana`;
+    descriptionEl.textContent = cityData.description || `Discover ${cityName}, a community in ${countyName}, Montana.`;
+
+    // Meta
+    const metaItems = [
+      { label: 'Population', value: cityData.population },
+      { label: 'Elevation', value: cityData.elevation },
+      { label: 'Website', value: cityData.website, isLink: true }
+    ].filter(i => i.value);
+
+    if (metaItems.length) {
+      metaEl.innerHTML = metaItems.map(item => {
+        if (item.isLink) {
+          return `<div class="county-meta-item"><span>${item.label}</span><a href="${item.value}" target="_blank">${item.value}</a></div>`;
+        }
+        return `<div class="county-meta-item"><span>${item.label}</span><strong>${item.value}</strong></div>`;
+      }).join('');
+    } else {
+      metaEl.innerHTML = '';
+    }
+
+    // Activities
+    if (cityData.activities) {
+      const items = cityData.activities.split(',').map(a => a.trim()).filter(Boolean);
+      activitiesEl.innerHTML = items.map(a => `<span class="city-chip">${a}</span>`).join(' ');
+    } else {
+      activitiesEl.innerHTML = '<em>No activities listed yet. Add them in the admin panel.</em>';
+    }
+
+    // Highlights
+    if (cityData.highlights) {
+      const items = cityData.highlights.split(',').map(h => h.trim()).filter(Boolean);
+      highlightsEl.innerHTML = items.map(h => `<span class="city-chip">${h}</span>`).join(' ');
+    } else {
+      highlightsEl.innerHTML = '<em>No highlights listed yet.</em>';
+    }
+
+    // Businesses in this city
+    const cityBusinesses = BUSINESSES.filter(b =>
       b.active && b.city === cityName && b.county === fipsCode
     );
-    
-    // Display businesses
     if (cityBusinesses.length > 0) {
-      businessList.innerHTML = cityBusinesses.map(biz => `
-        <div class="business-item" style="padding: 12px; margin-bottom: 10px; background: var(--parchment-light); 
+      businessesEl.innerHTML = cityBusinesses.map(biz => `
+        <div class="business-item" style="padding: 12px; margin-bottom: 10px; background: var(--parchment-light);
              border: 1px solid var(--wood-dark); border-radius: 6px;">
           <h4 style="margin: 0 0 8px 0; color: var(--wood-dark);">
             ${biz.icon} ${biz.name}
           </h4>
-          <p style="margin: 4px 0; color: var(--ink-dark); font-size: 0.9em;">
-            📍 ${biz.address}
-          </p>
+          <p style="margin: 4px 0; color: var(--ink-dark); font-size: 0.9em;">📍 ${biz.address}</p>
           ${biz.phone ? `<p style="margin: 4px 0; color: var(--ink-dark); font-size: 0.9em;">📞 ${biz.phone}</p>` : ''}
-          ${biz.website ? `
-            <p style="margin: 8px 0 0 0;">
-              <a href="${biz.website}" target="_blank" style="color: var(--wood-dark); text-decoration: underline;">
-                Visit Website
-              </a>
-            </p>
-          ` : ''}
+          ${biz.website ? `<p style="margin: 8px 0 0 0;"><a href="${biz.website}" target="_blank" style="color: var(--wood-dark); text-decoration: underline;">Visit Website</a></p>` : ''}
         </div>
       `).join('');
     } else {
-      businessList.innerHTML = `
-        <p style="color: var(--ink-dark); font-style: italic;">
-          No businesses registered in ${cityName} yet. Be the first!
-        </p>
-      `;
+      businessesEl.innerHTML = `<p style="color: var(--ink-dark); font-style: italic;">No businesses registered in ${cityName} yet. Be the first!</p>`;
     }
-    
-    modal.style.display = 'block';
+  }
+
+  showCityPage() {
+    const cityPage = document.getElementById('city-page');
+    const countyPage = document.getElementById('county-page');
+    const mapSection = document.getElementById('map-section');
+    const infoSection = document.getElementById('info-section');
+    const directory = document.getElementById('directory-section');
+    const cityModal = document.getElementById('city-modal');
+
+    if (cityPage) cityPage.style.display = 'block';
+    if (countyPage) countyPage.style.display = 'none';
+    if (mapSection) mapSection.style.display = 'none';
+    if (infoSection) infoSection.style.display = 'none';
+    if (directory) directory.style.display = 'none';
+    if (cityModal) cityModal.style.display = 'none';
   }
 
   closeCityModal() {
@@ -588,6 +755,102 @@ class MTApp {
     if (modal) {
       modal.style.display = 'none';
     }
+
+    if (this.currentCounty) {
+      this.currentCity = null;
+      this.openCountyPage(this.currentCounty.fips, this.currentCounty.name);
+    }
+  }
+
+  // ===== COUNTY DIRECTORY =====
+
+  buildCountyDirectory() {
+    const grid = document.getElementById('directory-grid');
+    if (!grid) return;
+
+    // Populate city admin county dropdown too
+    const cityAdminCounty = document.getElementById('city-admin-county');
+
+    const entries = Object.entries(COUNTY_NAME_MAP)
+      .map(([fips, name]) => ({ fips, name, shortName: name.replace(/\s+County$/i, '') }))
+      .sort((a, b) => a.shortName.localeCompare(b.shortName));
+
+    this._directoryEntries = entries; // cache for search
+
+    this.renderDirectoryGrid(entries);
+
+    // Populate city admin county dropdown
+    if (cityAdminCounty) {
+      cityAdminCounty.innerHTML = '<option value="">Select County...</option>';
+      entries.forEach(({ fips, name }) => {
+        const opt = document.createElement('option');
+        opt.value = fips;
+        opt.textContent = name;
+        cityAdminCounty.appendChild(opt);
+      });
+    }
+  }
+
+  renderDirectoryGrid(entries) {
+    const grid = document.getElementById('directory-grid');
+    if (!grid) return;
+
+    if (entries.length === 0) {
+      grid.innerHTML = '<p class="empty-state">No counties match your search.</p>';
+      return;
+    }
+
+    grid.innerHTML = entries.map(({ fips, name, shortName }) => {
+      const data = COUNTY_DATA[fips] || {};
+      const cities = COUNTY_CITIES[fips] || [];
+      return `
+        <a href="#/montana/${this.slugify(name)}" class="directory-card"
+           onclick="window.mtApp.openCountyPage('${fips}', '${name.replace(/'/g, "\\'")}'); return false;">
+          <h4>${shortName}</h4>
+          <div class="directory-card-meta">
+            ${data.seat ? `<span>🏛️ ${data.seat}</span>` : ''}
+            ${data.population ? `<span>👥 ${data.population}</span>` : ''}
+            <span>🏘️ ${cities.length} cities</span>
+          </div>
+        </a>
+      `;
+    }).join('');
+  }
+
+  filterDirectory(term) {
+    if (!this._directoryEntries) return;
+    if (!term) {
+      this.renderDirectoryGrid(this._directoryEntries);
+      return;
+    }
+    const lower = term.toLowerCase();
+    const filtered = this._directoryEntries.filter(e =>
+      e.name.toLowerCase().includes(lower) ||
+      e.shortName.toLowerCase().includes(lower) ||
+      e.fips.includes(term)
+    );
+    this.renderDirectoryGrid(filtered);
+  }
+
+  showDirectory() {
+    const directory = document.getElementById('directory-section');
+    const mapSection = document.getElementById('map-section');
+    const countyPage = document.getElementById('county-page');
+    const cityPage = document.getElementById('city-page');
+    const adminSection = document.getElementById('admin-section');
+    const businessForm = document.getElementById('business-form-section');
+
+    if (directory) directory.style.display = 'block';
+    if (mapSection) mapSection.style.display = 'none';
+    if (countyPage) countyPage.style.display = 'none';
+    if (cityPage) cityPage.style.display = 'none';
+    if (adminSection) adminSection.style.display = 'none';
+    if (businessForm) businessForm.style.display = 'none';
+
+    this.currentCounty = null;
+    this.currentCity = null;
+    this.setBreadcrumb({});
+    this.setHash('/montana');
   }
 
   refresh() {
@@ -717,7 +980,7 @@ class MTApp {
   
   toggleAdminPanel() {
     const adminSection = document.getElementById('admin-section');
-    const otherSections = ['business-form-section', 'map-section'];
+    const otherSections = ['business-form-section', 'map-section', 'county-page', 'city-page', 'directory-section'];
     
     if (adminSection.style.display === 'none') {
       adminSection.style.display = 'block';
@@ -742,24 +1005,54 @@ class MTApp {
     }
   }
 
-  handleAdminLogin(e) {
+  async handleAdminLogin(e) {
     e.preventDefault();
     const password = document.getElementById('admin-password').value;
-    
-    if (password === ADMIN_CONFIG.password) {
-      ADMIN_CONFIG.isLoggedIn = true;
-      document.getElementById('admin-login').style.display = 'none';
-      document.getElementById('admin-dashboard').style.display = 'block';
-      document.getElementById('admin-password').value = '';
-      this.loadCountyList();
+    const email = document.getElementById('admin-email')?.value || '';
+
+    if (this.ds && this.ds.isFirebase()) {
+      // Firebase auth
+      if (!email) {
+        alert('❌ Please enter your email address.');
+        return;
+      }
+      const result = await this.ds.login(email, password);
+      if (result.success) {
+        ADMIN_CONFIG.isLoggedIn = true;
+        document.getElementById('admin-login').style.display = 'none';
+        document.getElementById('admin-dashboard').style.display = 'block';
+        document.getElementById('admin-password').value = '';
+        this.loadCountyList();
+        if (this.pendingCountyEdit) {
+          this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+          this.pendingCountyEdit = null;
+        }
+      } else {
+        alert(`❌ ${result.error}`);
+        document.getElementById('admin-password').value = '';
+      }
     } else {
-      alert('❌ Incorrect password. Please try again.');
-      document.getElementById('admin-password').value = '';
+      // localStorage fallback
+      if (password === ADMIN_CONFIG.password) {
+        ADMIN_CONFIG.isLoggedIn = true;
+        document.getElementById('admin-login').style.display = 'none';
+        document.getElementById('admin-dashboard').style.display = 'block';
+        document.getElementById('admin-password').value = '';
+        this.loadCountyList();
+        if (this.pendingCountyEdit) {
+          this.openCountyEditor(this.pendingCountyEdit.fips, this.pendingCountyEdit.name);
+          this.pendingCountyEdit = null;
+        }
+      } else {
+        alert('❌ Incorrect password. Please try again.');
+        document.getElementById('admin-password').value = '';
+      }
     }
   }
 
-  handleAdminLogout() {
+  async handleAdminLogout() {
     ADMIN_CONFIG.isLoggedIn = false;
+    if (this.ds) await this.ds.logout();
     document.getElementById('admin-dashboard').style.display = 'none';
     document.getElementById('admin-login').style.display = 'block';
     document.getElementById('admin-section').style.display = 'none';
@@ -792,27 +1085,7 @@ class MTApp {
     if (!countyList) return;
     
     // Get all Montana counties from our data
-    const countyNames = {
-      '30001': 'Beaverhead County', '30003': 'Big Horn County', '30005': 'Blaine County',
-      '30007': 'Broadwater County', '30009': 'Carbon County', '30011': 'Carter County',
-      '30013': 'Cascade County', '30015': 'Chouteau County', '30017': 'Custer County',
-      '30019': 'Daniels County', '30021': 'Dawson County', '30023': 'Deer Lodge County',
-      '30025': 'Fallon County', '30027': 'Fergus County', '30029': 'Flathead County',
-      '30031': 'Gallatin County', '30033': 'Garfield County', '30035': 'Glacier County',
-      '30037': 'Golden Valley County', '30039': 'Granite County', '30041': 'Hill County',
-      '30043': 'Jefferson County', '30045': 'Judith Basin County', '30047': 'Lake County',
-      '30049': 'Lewis and Clark County', '30051': 'Liberty County', '30053': 'Lincoln County',
-      '30055': 'McCone County', '30057': 'Madison County', '30059': 'Meagher County',
-      '30061': 'Mineral County', '30063': 'Missoula County', '30065': 'Musselshell County',
-      '30067': 'Park County', '30069': 'Petroleum County', '30071': 'Phillips County',
-      '30073': 'Pondera County', '30075': 'Powder River County', '30077': 'Powell County',
-      '30079': 'Prairie County', '30081': 'Ravalli County', '30083': 'Richland County',
-      '30085': 'Roosevelt County', '30087': 'Rosebud County', '30089': 'Sanders County',
-      '30091': 'Sheridan County', '30093': 'Silver Bow County', '30095': 'Stillwater County',
-      '30097': 'Sweet Grass County', '30099': 'Teton County', '30101': 'Toole County',
-      '30103': 'Treasure County', '30105': 'Valley County', '30107': 'Wheatland County',
-      '30109': 'Wibaux County', '30111': 'Yellowstone County'
-    };
+    const countyNames = COUNTY_NAME_MAP;
     
     this.allCounties = Object.entries(countyNames).map(([fips, name]) => ({
       fips,
@@ -892,7 +1165,7 @@ class MTApp {
     this.currentEditingCounty = null;
   }
 
-  handleCountyUpdate(e) {
+  async handleCountyUpdate(e) {
     e.preventDefault();
     
     const fips = document.getElementById('edit-county-id').value;
@@ -906,20 +1179,30 @@ class MTApp {
       poi: document.getElementById('edit-county-poi').value
     };
     
-    // Save to COUNTY_DATA
+    // Save via data service (Firebase + localStorage)
+    if (this.ds) {
+      await this.ds.saveCountyData(fips, countyData);
+    }
+    // Also update in-memory
     COUNTY_DATA[fips] = countyData;
-    localStorage.setItem('countyData', JSON.stringify(COUNTY_DATA));
     
     // Update the county list display
     this.loadCountyList();
     
     // Close modal
     this.closeModal();
+
+    if (this.currentCounty && this.currentCounty.fips === fips) {
+      this.renderCountyPage(fips, this.currentCounty.name);
+    }
+
+    // Refresh directory card
+    this.buildCountyDirectory();
     
     alert('✅ County information updated successfully!');
   }
 
-  handlePasswordChange(e) {
+  async handlePasswordChange(e) {
     e.preventDefault();
     
     const newPassword = document.getElementById('new-password').value;
@@ -939,6 +1222,14 @@ class MTApp {
       alert('❌ Password must be at least 6 characters long.');
       return;
     }
+
+    if (this.ds) {
+      const result = await this.ds.changePassword(newPassword);
+      if (!result.success) {
+        alert(`❌ ${result.error}`);
+        return;
+      }
+    }
     
     ADMIN_CONFIG.password = newPassword;
     localStorage.setItem('adminPassword', newPassword);
@@ -947,6 +1238,390 @@ class MTApp {
     document.getElementById('confirm-password').value = '';
     
     alert('✅ Admin password updated successfully!');
+  }
+
+  buildCountySlugMap() {
+    const slugMap = {};
+    Object.entries(COUNTY_NAME_MAP).forEach(([fips, name]) => {
+      const cleaned = name.replace(/\s+County$/i, '');
+      slugMap[this.slugify(cleaned)] = fips;
+    });
+    return slugMap;
+  }
+
+  slugify(value) {
+    return value
+      .toString()
+      .toLowerCase()
+      .replace(/\s+county$/i, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  setHash(path) {
+    if (this.isUpdatingHash) return;
+    this.isUpdatingHash = true;
+    window.location.hash = `#${path}`;
+    window.setTimeout(() => {
+      this.isUpdatingHash = false;
+    }, 0);
+  }
+
+  setBreadcrumb({ countyName = null, cityName = null }) {
+    const countyEl = document.getElementById('breadcrumb-county');
+    const cityEl = document.getElementById('breadcrumb-city');
+    const countySep = document.getElementById('breadcrumb-sep-county');
+    const citySep = document.getElementById('breadcrumb-sep-city');
+
+    if (!countyEl || !cityEl || !countySep || !citySep) return;
+
+    if (countyName) {
+      countyEl.textContent = countyName;
+      countyEl.classList.remove('disabled');
+      countyEl.href = `#/montana/${this.slugify(countyName)}`;
+      countyEl.style.display = 'inline-flex';
+      countySep.style.display = 'inline-flex';
+    } else {
+      countyEl.textContent = 'County';
+      countyEl.classList.add('disabled');
+      countyEl.href = '#/montana';
+      countyEl.style.display = 'none';
+      countySep.style.display = 'none';
+    }
+
+    if (cityName) {
+      cityEl.textContent = cityName;
+      cityEl.style.display = 'inline-flex';
+      citySep.style.display = 'inline-flex';
+    } else {
+      cityEl.textContent = 'City';
+      cityEl.style.display = 'none';
+      citySep.style.display = 'none';
+    }
+  }
+
+  showCountyPage() {
+    const countyPage = document.getElementById('county-page');
+    const mapSection = document.getElementById('map-section');
+    const infoSection = document.getElementById('info-section');
+    const cityPage = document.getElementById('city-page');
+    const directory = document.getElementById('directory-section');
+
+    if (countyPage) countyPage.style.display = 'block';
+    if (mapSection) mapSection.style.display = 'none';
+    if (infoSection) infoSection.style.display = 'none';
+    if (cityPage) cityPage.style.display = 'none';
+    if (directory) directory.style.display = 'none';
+  }
+
+  showMapView() {
+    const countyPage = document.getElementById('county-page');
+    const mapSection = document.getElementById('map-section');
+    const cityPage = document.getElementById('city-page');
+    const directory = document.getElementById('directory-section');
+    const adminSection = document.getElementById('admin-section');
+    const businessForm = document.getElementById('business-form-section');
+
+    if (countyPage) countyPage.style.display = 'none';
+    if (mapSection) mapSection.style.display = 'block';
+    if (cityPage) cityPage.style.display = 'none';
+    if (directory) directory.style.display = 'none';
+    if (adminSection) adminSection.style.display = 'none';
+    if (businessForm) businessForm.style.display = 'none';
+
+    this.currentCounty = null;
+    this.currentCity = null;
+    this.setBreadcrumb({});
+    this.setHash('/montana');
+  }
+
+  renderCountyPage(fipsCode, countyName) {
+    const titleEl = document.getElementById('county-page-title');
+    const descriptionEl = document.getElementById('county-page-description');
+    const metaEl = document.getElementById('county-meta');
+    const citiesEl = document.getElementById('county-cities-list');
+
+    if (!titleEl || !descriptionEl || !metaEl || !citiesEl) return;
+
+    const countyData = COUNTY_DATA[fipsCode] || {};
+    const description = countyData.description || `Explore ${countyName} and discover local history, landmarks, and activities.`;
+
+    titleEl.textContent = countyName;
+    descriptionEl.textContent = description;
+
+    const metaItems = [
+      { label: 'County Seat', value: countyData.seat },
+      { label: 'Population', value: countyData.population },
+      { label: 'Established', value: countyData.established },
+      { label: 'Area (sq mi)', value: countyData.area },
+      { label: 'Website', value: countyData.website, isLink: true },
+      { label: 'Points of Interest', value: countyData.poi }
+    ].filter(item => item.value);
+
+    if (metaItems.length === 0) {
+      metaEl.innerHTML = '<p class="empty-state">No custom county details yet. Add them in the admin panel.</p>';
+    } else {
+      metaEl.innerHTML = metaItems.map(item => {
+        if (item.isLink) {
+          return `
+            <div class="county-meta-item">
+              <span>${item.label}</span>
+              <a href="${item.value}" target="_blank">${item.value}</a>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="county-meta-item">
+            <span>${item.label}</span>
+            <strong>${item.value}</strong>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const cities = COUNTY_CITIES[fipsCode] || [];
+    if (cities.length === 0) {
+      citiesEl.innerHTML = '<p class="empty-state">No cities listed yet.</p>';
+    } else {
+      citiesEl.innerHTML = cities.map(city => `
+        <button class="city-chip" onclick="window.mtApp.openCityPage('${city}', '${countyName}', '${fipsCode}')">
+          ${city}
+        </button>
+      `).join('');
+    }
+  }
+
+  openCountyPage(fipsCode, countyName) {
+    this.currentCounty = { fips: fipsCode, name: countyName };
+    this.currentCity = null;
+    this.renderCountyPage(fipsCode, countyName);
+    this.showCountyPage();
+    this.setBreadcrumb({ countyName });
+    this.setHash(`/montana/${this.slugify(countyName)}`);
+  }
+
+  handleRouteFromHash() {
+    if (this.isUpdatingHash) return;
+
+    const rawHash = window.location.hash || '#/montana';
+    const path = rawHash.replace('#', '').trim();
+    const segments = path.split('/').filter(Boolean);
+
+    if (segments.length === 0 || segments[0] !== 'montana') {
+      this.showMapView();
+      return;
+    }
+
+    if (segments.length === 1) {
+      this.showMapView();
+      return;
+    }
+
+    const countySlug = segments[1];
+    const fips = this.countySlugToFips[countySlug];
+    const countyName = fips ? COUNTY_NAME_MAP[fips] : null;
+
+    if (!fips || !countyName) {
+      this.showMapView();
+      return;
+    }
+
+    if (segments.length === 2) {
+      this.currentCounty = { fips, name: countyName };
+      this.currentCity = null;
+      this.renderCountyPage(fips, countyName);
+      this.showCountyPage();
+      this.setBreadcrumb({ countyName });
+      return;
+    }
+
+    const citySlug = segments[2];
+    const cityName = (COUNTY_CITIES[fips] || []).find(city => this.slugify(city) === citySlug);
+    if (cityName) {
+      this.currentCounty = { fips, name: countyName };
+      this.currentCity = { name: cityName };
+      this.renderCityPage(cityName, countyName, fips);
+      this.showCityPage();
+      this.setBreadcrumb({ countyName, cityName });
+    } else {
+      this.openCountyPage(fips, countyName);
+    }
+  }
+
+  openAdminForCounty(fipsCode, countyName) {
+    const adminSection = document.getElementById('admin-section');
+
+    if (!adminSection || !fipsCode || !countyName) return;
+
+    if (adminSection.style.display === 'none') {
+      this.toggleAdminPanel();
+    }
+
+    if (ADMIN_CONFIG.isLoggedIn) {
+      this.openCountyEditor(fipsCode, countyName);
+    } else {
+      this.pendingCountyEdit = { fips: fipsCode, name: countyName };
+    }
+  }
+
+  // ===== City Admin Methods =====
+
+  openAdminForCity(fipsCode, cityName) {
+    const adminSection = document.getElementById('admin-section');
+    if (!adminSection || !fipsCode || !cityName) return;
+
+    if (adminSection.style.display === 'none') {
+      this.toggleAdminPanel();
+    }
+
+    if (ADMIN_CONFIG.isLoggedIn) {
+      // Switch to cities tab and open editor
+      this.switchAdminTab('cities');
+      const countySelect = document.getElementById('city-admin-county');
+      if (countySelect) countySelect.value = fipsCode;
+      this.loadCityList(fipsCode);
+      setTimeout(() => {
+        this.openCityEditor(fipsCode, cityName);
+      }, 100);
+    } else {
+      this.pendingCountyEdit = { fips: fipsCode, name: cityName, isCity: true };
+    }
+  }
+
+  loadCityList(fipsCode) {
+    const cityList = document.getElementById('city-list');
+    if (!cityList) return;
+
+    if (!fipsCode) {
+      cityList.innerHTML = '<p class="empty-state">Select a county to see its cities.</p>';
+      this._currentCityListFips = null;
+      this._currentCityListEntries = null;
+      return;
+    }
+
+    this._currentCityListFips = fipsCode;
+    const cities = COUNTY_CITIES[fipsCode] || [];
+    const countyName = COUNTY_NAME_MAP[fipsCode] || 'Unknown County';
+
+    this._currentCityListEntries = cities.map(city => {
+      const slug = this.slugify(city);
+      const key = `${fipsCode}_${slug}`;
+      const data = CITY_DATA[key] || null;
+      return { name: city, slug, key, data, fips: fipsCode, countyName };
+    });
+
+    this.renderCityList(this._currentCityListEntries);
+  }
+
+  renderCityList(entries) {
+    const cityList = document.getElementById('city-list');
+    if (!cityList) return;
+
+    if (!entries || entries.length === 0) {
+      cityList.innerHTML = '<p class="empty-state">No cities found for this county.</p>';
+      return;
+    }
+
+    cityList.innerHTML = entries.map(city => {
+      const hasData = city.data && Object.keys(city.data).length > 0;
+      return `
+        <div class="county-item" data-city="${city.slug}">
+          <div class="county-item-info">
+            <h4>${city.name}</h4>
+            <p>${city.countyName}</p>
+          </div>
+          <div class="county-item-status">
+            <span class="status-badge ${hasData ? 'has-data' : 'no-data'}">
+              ${hasData ? '✓ Customized' : 'Default'}
+            </span>
+            <button class="edit-btn" onclick="app.openCityEditor('${city.fips}', '${city.name.replace(/'/g, "\\'")}')">
+              Edit
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  filterCityList(term) {
+    if (!this._currentCityListEntries) return;
+    if (!term) {
+      this.renderCityList(this._currentCityListEntries);
+      return;
+    }
+    const lower = term.toLowerCase();
+    const filtered = this._currentCityListEntries.filter(c =>
+      c.name.toLowerCase().includes(lower)
+    );
+    this.renderCityList(filtered);
+  }
+
+  openCityEditor(fips, cityName) {
+    this.currentEditingCity = { fips, name: cityName };
+    const slug = this.slugify(cityName);
+    const key = `${fips}_${slug}`;
+    const cityData = CITY_DATA[key] || {};
+
+    document.getElementById('modal-city-name').textContent = `Edit ${cityName}`;
+    document.getElementById('edit-city-fips').value = fips;
+    document.getElementById('edit-city-slug').value = slug;
+    document.getElementById('edit-city-display-name').value = cityName;
+    document.getElementById('edit-city-description').value = cityData.description || '';
+    document.getElementById('edit-city-population').value = cityData.population || '';
+    document.getElementById('edit-city-elevation').value = cityData.elevation || '';
+    document.getElementById('edit-city-website').value = cityData.website || '';
+    document.getElementById('edit-city-activities').value = cityData.activities || '';
+    document.getElementById('edit-city-highlights').value = cityData.highlights || '';
+
+    document.getElementById('city-edit-modal').style.display = 'flex';
+  }
+
+  closeCityEditModal() {
+    document.getElementById('city-edit-modal').style.display = 'none';
+    this.currentEditingCity = null;
+  }
+
+  async handleCityUpdate(e) {
+    e.preventDefault();
+
+    const fips = document.getElementById('edit-city-fips').value;
+    const slug = document.getElementById('edit-city-slug').value;
+    const cityData = {
+      description: document.getElementById('edit-city-description').value,
+      population: document.getElementById('edit-city-population').value,
+      elevation: document.getElementById('edit-city-elevation').value,
+      website: document.getElementById('edit-city-website').value,
+      activities: document.getElementById('edit-city-activities').value,
+      highlights: document.getElementById('edit-city-highlights').value
+    };
+
+    const key = `${fips}_${slug}`;
+
+    // Save via data service
+    if (this.ds) {
+      await this.ds.saveCityData(fips, slug, cityData);
+    }
+    // Update in-memory
+    CITY_DATA[key] = cityData;
+
+    // Refresh city list
+    if (this._currentCityListFips) {
+      this.loadCityList(this._currentCityListFips);
+    }
+
+    // Close modal
+    this.closeCityEditModal();
+
+    // Refresh city page if we're viewing this city
+    if (this.currentCity && this.currentCounty && this.currentCounty.fips === fips) {
+      const currentSlug = this.slugify(this.currentCity.name);
+      if (currentSlug === slug) {
+        this.renderCityPage(this.currentCity.name, this.currentCounty.name, fips);
+      }
+    }
+
+    alert('✅ City information updated successfully!');
   }
 
   checkBusinessExpiration() {
@@ -1248,5 +1923,6 @@ class MTApp {
 let app; // Global reference for inline event handlers
 document.addEventListener('DOMContentLoaded', () => {
   app = new MTApp();
+  window.mtApp = app;
   app.init();
 });
