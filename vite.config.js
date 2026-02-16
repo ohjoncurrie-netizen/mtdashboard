@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { copyFileSync, mkdirSync, existsSync } from 'fs'
+import { copyFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 
-// Custom plugin to copy static files
+// Custom plugin to copy static files and fix CSS links in dist HTML
 const copyStaticFiles = () => ({
   name: 'copy-static-files',
   closeBundle() {
@@ -25,6 +25,20 @@ const copyStaticFiles = () => ({
         console.log(`Copied ${file} to dist/`)
       }
     })
+
+    // Re-inject CSS links that Vite strips during build
+    const distHtml = resolve(__dirname, 'dist', 'index.html')
+    if (existsSync(distHtml)) {
+      let html = readFileSync(distHtml, 'utf-8')
+      if (!html.includes('href="styles.css"')) {
+        html = html.replace(
+          '</head>',
+          '  <link rel="stylesheet" href="styles.css">\n  <link rel="stylesheet" href="modern-enhancements.css">\n</head>'
+        )
+        writeFileSync(distHtml, html, 'utf-8')
+        console.log('Injected styles.css and modern-enhancements.css into dist/index.html')
+      }
+    }
   }
 })
 

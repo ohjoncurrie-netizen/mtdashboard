@@ -45,29 +45,37 @@ class MTApp {
   }
 
   async init() {
-    // Wait for Google Maps to load
-    while (!window.googleMapsLoaded) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    this.geocoder = new google.maps.Geocoder();
-    
-    // Initialize the map
+    // Setup event listeners FIRST — these don't need Google Maps
+    this.setupEventListeners();
+    this.setupAuthListeners();
+    this.updateAuthUI(null);
+
+    // Initialize the Leaflet map (no Google Maps dependency)
     this.initMap();
-    
+
     // Load county boundaries
     await this.loadCountyBoundaries();
-    
+
     // Initialize layer controller and HUD
     this.initializeLayerController();
     this.initializeHUD();
-    
-    // Setup event listeners
-    this.setupEventListeners();
-    
-    // Setup authentication
-    this.setupAuthListeners();
-    this.updateAuthUI(null);
+
+    // Wait for Google Maps with a timeout (only needed for geocoder)
+    const googleMapsReady = await Promise.race([
+      new Promise(resolve => {
+        if (window.googleMapsLoaded) return resolve(true);
+        const check = setInterval(() => {
+          if (window.googleMapsLoaded) { clearInterval(check); resolve(true); }
+        }, 100);
+      }),
+      new Promise(resolve => setTimeout(() => resolve(false), 8000))
+    ]);
+
+    if (googleMapsReady) {
+      this.geocoder = new google.maps.Geocoder();
+    } else {
+      console.warn('⚠️ Google Maps API did not load — geocoder unavailable');
+    }
     
     // Populate county dropdown in business form
     this.populateCountyDropdown();
@@ -226,12 +234,12 @@ class MTApp {
       // Create a GeoJSON layer with click functionality
       this.countyLayer = L.geoJSON(montanaCounties, {
         style: {
-          fillColor: '#d4a574',
-          weight: 2.5,
-          opacity: 0.9,
-          color: '#8B4513',
-          dashArray: '5, 3',
-          fillOpacity: 0.05
+          fillColor: '#1e3a5f',
+          weight: 2,
+          opacity: 0.8,
+          color: '#2d5a8e',
+          dashArray: '4, 4',
+          fillOpacity: 0.06
         },
         onEachFeature: (feature, layer) => {
           // Get county name from FIPS code
@@ -241,17 +249,17 @@ class MTApp {
           // Highlight on hover
           layer.on('mouseover', function() {
             this.setStyle({
-              fillOpacity: 0.25,
-              weight: 3.5,
-              color: '#8B0000'
+              fillOpacity: 0.2,
+              weight: 3,
+              color: '#d4a843'
             });
           });
           
           layer.on('mouseout', function() {
             this.setStyle({
-              fillOpacity: 0.05,
-              weight: 2.5,
-              color: '#8B4513'
+              fillOpacity: 0.06,
+              weight: 2,
+              color: '#2d5a8e'
             });
           });
           
