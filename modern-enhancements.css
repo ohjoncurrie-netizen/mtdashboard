@@ -263,6 +263,25 @@ header {
   box-shadow: 0 4px 12px rgba(217, 119, 6, 0.4);
 }
 
+/* Nav buttons outside the header need dark-on-light styling */
+main .nav-btn,
+.modal .nav-btn,
+.admin-section .nav-btn,
+footer .nav-btn {
+  color: var(--mt-slate-700);
+  background: var(--mt-slate-100);
+  border: 1px solid var(--mt-slate-300);
+}
+
+main .nav-btn:hover,
+.modal .nav-btn:hover,
+.admin-section .nav-btn:hover,
+footer .nav-btn:hover {
+  color: var(--mt-navy);
+  background: var(--mt-slate-200);
+  border-color: var(--mt-slate-400);
+}
+
 .menu-btn {
   padding: var(--space-2);
   background: transparent;
