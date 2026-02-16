@@ -3,5 +3,8 @@
     "chat.checkpoints.showFileChanges": false,
     "chat.customAgentInSubagent.enabled": true,
     "claudeCodeChat.permissions.yoloMode": true,
-    "chat.tools.terminal.ignoreDefaultAutoApproveRules": false
+    "chat.tools.terminal.ignoreDefaultAutoApproveRules": false,
+    "chat.viewProgressBadge.enabled": true,
+    "inlineChat.enableV2": true,
+    "inlineChat.defaultModel": "GPT-4.1 (copilot)"
 }
