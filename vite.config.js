@@ -3,6 +3,18 @@ import react from '@vitejs/plugin-react'
 import { copyFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 
+// Skip Vite's import analysis on plain (non-module) JS files
+const skipPlainScripts = () => ({
+  name: 'skip-plain-scripts',
+  enforce: 'pre',
+  transform(code, id) {
+    const skipFiles = ['app.js', 'config.js', 'firebase-config.js']
+    if (skipFiles.some(f => id.endsWith(f))) {
+      return { code, map: null }
+    }
+  }
+})
+
 // Custom plugin to copy static files and fix CSS links in dist HTML
 const copyStaticFiles = () => ({
   name: 'copy-static-files',
@@ -44,7 +56,7 @@ const copyStaticFiles = () => ({
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), copyStaticFiles()],
+  plugins: [react(), skipPlainScripts(), copyStaticFiles()],
   server: {
     port: 3000,
     open: true

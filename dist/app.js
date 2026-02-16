@@ -3513,6 +3513,7 @@ class MTApp {
       this.showNotification(result.error || 'Failed to grant award', 'error');
     }
   }
+}
 
 // Initialize app when DOM is ready
 let app; // Global reference for inline event handlers
