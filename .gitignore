@@ -7,7 +7,7 @@ node_modules
 /coverage
 
 # Production
-/dist
+# /dist - NOT ignored, we need dist/ deployed to GitHub Pages
 /build
 
 # Misc

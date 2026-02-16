@@ -405,18 +405,13 @@ class MTApp {
   }
 
   setupEventListeners() {
-    console.log('🎯 Setting up event listeners...');
-    
     // Sidebar toggle
     const sidebarToggle = document.getElementById('sidebar-toggle');
     const sidebarClose = document.getElementById('sidebar-close');
     const sidebarOverlay = document.getElementById('sidebar-overlay');
     
-    console.log('Sidebar elements:', { sidebarToggle, sidebarClose, sidebarOverlay });
-    
     if (sidebarToggle) {
       sidebarToggle.addEventListener('click', () => this.toggleSidebar());
-      console.log('✅ Sidebar toggle listener added');
     }
     if (sidebarClose) {
       sidebarClose.addEventListener('click', () => this.closeSidebar());
@@ -458,9 +453,6 @@ class MTApp {
     const directoryBtn = document.getElementById('directory-btn');
     if (directoryBtn) {
       directoryBtn.addEventListener('click', () => this.showDirectory());
-      console.log('✅ Directory button listener added');
-    } else {
-      console.warn('⚠️ Directory button not found!');
     }
 
     // Directory search
@@ -543,36 +535,24 @@ class MTApp {
     const businessBtn = document.getElementById('business-btn');
     if (businessBtn) {
       businessBtn.addEventListener('click', () => this.toggleBusinessForm());
-      console.log('✅ Business button listener added');
-    } else {
-      console.warn('⚠️ Business button not found!');
     }
 
     // Discussion button
     const discussionBtn = document.getElementById('discussion-btn');
     if (discussionBtn) {
       discussionBtn.addEventListener('click', () => this.toggleDiscussionBoard());
-      console.log('✅ Discussion button listener added');
-    } else {
-      console.warn('⚠️ Discussion button not found!');
     }
     
     // HUD toggle button
     const hudToggleBtn = document.getElementById('hud-toggle-btn');
     if (hudToggleBtn) {
       hudToggleBtn.addEventListener('click', () => this.toggleHUDPanel());
-      console.log('✅ HUD toggle button listener added');
-    } else {
-      console.warn('⚠️ HUD toggle button not found!');
     }
     
     // Admin button
     const adminBtn = document.getElementById('admin-btn');
     if (adminBtn) {
       adminBtn.addEventListener('click', () => this.toggleAdminPanel());
-      console.log('✅ Admin button listener added');
-    } else {
-      console.warn('⚠️ Admin button not found!');
     }
     
     // Admin login
@@ -3538,10 +3518,7 @@ class MTApp {
 // Initialize app when DOM is ready
 let app; // Global reference for inline event handlers
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('🔧 DOMContentLoaded fired - initializing MTApp');
   app = new MTApp();
   window.mtApp = app;
-  console.log('✅ MTApp instance created, calling init()');
   app.init();
-  console.log('✅ MTApp initialized successfully');
 });
