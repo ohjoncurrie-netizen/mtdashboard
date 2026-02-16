@@ -310,6 +310,7 @@ header {
   box-shadow: var(--shadow-xl);
 }
 
+.sidebar.active,
 .sidebar.open { transform: translateX(0); }
 
 .sidebar-header {

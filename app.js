@@ -200,17 +200,6 @@ class MTApp {
       attribution: '&copy; <a href="https://www.esri.com/" target="_blank">Esri</a>',
       maxZoom: 18
     }).addTo(this.map);
-    
-    // Apply vintage parchment filter via CSS after tiles load
-    setTimeout(() => {
-      const mapContainer = document.getElementById('map');
-      if (mapContainer) {
-        const tiles = mapContainer.querySelector('.leaflet-tile-pane');
-        if (tiles) {
-          tiles.style.filter = 'sepia(0.4) contrast(0.9) brightness(1.1) saturate(0.7)';
-        }
-      }
-    }, 500);
   }
 
   async loadCountyBoundaries() {
