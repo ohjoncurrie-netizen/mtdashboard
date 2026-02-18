@@ -1069,6 +1069,8 @@ class MTApp {
     this.showCityPage();
     this.setBreadcrumb({ countyName, cityName });
     this.setHash(`/montana/${this.slugify(countyName)}/${this.slugify(cityName)}`);
+    const cityEditBtn = document.getElementById('city-open-admin');
+    if (cityEditBtn) cityEditBtn.style.display = ADMIN_CONFIG.isLoggedIn ? '' : 'none';
   }
 
   renderCityPage(cityName, countyName, fipsCode) {
