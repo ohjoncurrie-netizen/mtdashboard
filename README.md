@@ -100,7 +100,7 @@ Montana County Explorer is a comprehensive web application that brings Montana's
    ```
 
 3. **Set up API keys**
-   - Add your Google Maps API key in `index.html` (line 15)
+   - Add your Google Maps API key in the Google Maps script tag in `index.html`
    - Configure Firebase settings in `firebase-config.js` if using Firebase features
 
 4. **Start development server**
