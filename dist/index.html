@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Montana County Explorer</title>
+  <title>Montana Insight Portal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,8 +14,8 @@
   <script async defer 
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXY5noMi8eAp2uM9zWOMHYGRC_k_PeRU0&libraries=geometry&callback=initGoogleMaps"
   type="text/javascript"></script>
-  <script type="module" crossorigin src="/assets/main-uyLoo3zk.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/main-DMnYAZcX.css">
+  <script type="module" crossorigin src="/assets/main-CUjW37Ef.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-C6xL4M6Z.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="modern-enhancements.css">
 </head>
@@ -25,7 +25,7 @@
     <div class="sidebar-header">
       <div class="sidebar-brand">
         <div class="sidebar-logo">MT</div>
-        <h2>Montana Explorer</h2>
+        <h2>Montana Insight Portal</h2>
       </div>
       <button class="sidebar-close" id="sidebar-close">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -38,6 +38,7 @@
         <li><a href="#map-section" class="sidebar-link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg> View Map</a></li>
         <li><a href="#" id="sidebar-directory" class="sidebar-link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Browse Counties</a></li>
         <li><a href="#" id="sidebar-business" class="sidebar-link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg> Business Directory</a></li>
+        <li><a href="#" id="sidebar-marketplace" class="sidebar-link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg> Marketplace 🔒</a></li>
         <li><a href="https://511.mt.gov/" target="_blank" class="sidebar-link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Road Conditions</a></li>
         <li><a href="https://visitmt.com/" target="_blank" class="sidebar-link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> Visit Montana</a></li>
         <li><a href="https://fwp.mt.gov/" target="_blank" class="sidebar-link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> Fish, Wildlife & Parks</a></li>
@@ -128,13 +129,14 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <div class="header-content">
-            <h1>Montana County Explorer</h1>
-            <p class="subtitle">Interactive Regional Intelligence Portal</p>
+            <h1>Montana Insight Portal</h1>
+            <p class="subtitle">Statewide Intelligence, Discovery & Community Portal</p>
           </div>
         </div>
         <nav class="header-nav">
           <button id="directory-btn" class="nav-btn">Browse Counties</button>
           <button id="business-btn" class="nav-btn">Business Directory</button>
+          <button id="marketplace-nav-btn" class="nav-btn">🛒 Marketplace</button>
           <button id="discussion-btn" class="nav-btn">💬 Discussion</button>
           <button id="events-nav-btn" class="nav-btn">📅 Events</button>
           <button id="awards-btn" class="nav-btn">🏆 Top 20</button>
@@ -240,6 +242,69 @@
         </div>
       </section>
 
+      <!-- Marketplace Section -->
+      <section class="marketplace-section" id="marketplace-section" style="display: none;">
+        <div class="card marketplace-card">
+          <div class="marketplace-header">
+            <h2>Montana Marketplace</h2>
+            <div class="marketplace-actions">
+              <button class="nav-btn" id="marketplace-back-btn">Back to Map</button>
+              <button class="submit-btn" id="marketplace-post-btn" style="display: none;">+ Post an Ad</button>
+            </div>
+          </div>
+
+          <!-- Auth Required Message (shown when not logged in) -->
+          <div id="marketplace-auth-required" class="auth-required-card" style="display: none;">
+            <div class="auth-icon">🔒</div>
+            <h3>Authentication Required</h3>
+            <p>Please sign in to view and post marketplace listings.</p>
+            <div class="auth-actions">
+              <button class="submit-btn" id="marketplace-signin-btn">Sign In</button>
+              <button class="nav-btn" id="marketplace-register-btn">Create Account</button>
+            </div>
+          </div>
+
+          <!-- Marketplace Content (shown when logged in) -->
+          <div id="marketplace-content" style="display: none;">
+            <div class="marketplace-intro">
+              <p>Buy, sell, and find work opportunities across Montana communities. Connect with locals in your county and beyond.</p>
+            </div>
+
+            <!-- Filters -->
+            <div class="marketplace-filters">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Category</label>
+                  <select id="marketplace-filter-type" class="search-input">
+                    <option value="">All Categories</option>
+                    <option value="buying">🔍 Buy</option>
+                    <option value="selling">🏷️ Sell</option>
+                    <option value="for_hire">👷 For Hire</option>
+                    <option value="for_sale">📦 For Sale</option>
+                    <option value="community">📣 Community Announcements</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>County</label>
+                  <select id="marketplace-filter-county" class="search-input">
+                    <option value="">All Counties</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Search</label>
+                  <input type="text" id="marketplace-search" placeholder="Search listings..." class="search-input">
+                </div>
+              </div>
+            </div>
+
+            <!-- Listings Grid -->
+            <div id="marketplace-listings" class="marketplace-grid">
+              <p class="empty-state">No listings yet. Be the first to post!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Admin Panel -->
       <section class="admin-section" id="admin-section" style="display: none;">
         <!-- Login Screen -->
@@ -283,9 +348,14 @@
 
             <!-- Counties Tab -->
             <div class="admin-tab-content" id="tab-counties">
+              <div class="admin-help-box">
+                <h4>🗂️ County List & Quick Edit</h4>
+                <p>Use search, review completion status, and click <strong>Edit County</strong> to update county content fields.</p>
+              </div>
               <div class="admin-search">
                 <input type="text" id="county-search" placeholder="Search counties..." class="search-input">
               </div>
+              <p class="admin-list-summary" id="county-list-summary">Loading county summary...</p>
               
               <div class="county-list" id="county-list">
                 <p class="empty-state">Loading counties...</p>
@@ -462,6 +532,36 @@
                 <h4 class="analytics-chart-title">🕒 Recent Activity</h4>
                 <div id="analytics-feed" class="analytics-feed">
                   <p class="empty-state">No activity recorded yet.</p>
+                </div>
+              </div>
+
+              <!-- Billing dashboard -->
+              <div class="analytics-section">
+                <h4 class="analytics-chart-title">💳 Billing Dashboard</h4>
+                <div class="analytics-summary" id="billing-summary">
+                  <div class="analytics-card">
+                    <div class="analytics-card-value" id="bill-total-businesses">—</div>
+                    <div class="analytics-card-label">Total Businesses</div>
+                  </div>
+                  <div class="analytics-card">
+                    <div class="analytics-card-value" id="bill-active">—</div>
+                    <div class="analytics-card-label">Active Billing</div>
+                  </div>
+                  <div class="analytics-card">
+                    <div class="analytics-card-value" id="bill-past-due">—</div>
+                    <div class="analytics-card-label">Past Due</div>
+                  </div>
+                  <div class="analytics-card">
+                    <div class="analytics-card-value" id="bill-canceled">—</div>
+                    <div class="analytics-card-label">Canceled</div>
+                  </div>
+                  <div class="analytics-card">
+                    <div class="analytics-card-value" id="bill-mrr">—</div>
+                    <div class="analytics-card-label">Estimated MRR</div>
+                  </div>
+                </div>
+                <div id="billing-breakdown" class="analytics-discussions">
+                  <p class="empty-state">No billing data yet.</p>
                 </div>
               </div>
             </div>
@@ -796,6 +896,121 @@
             </form>
           </div>
         </div>
+
+        <!-- Marketplace Post Modal -->
+        <div class="modal" id="marketplace-post-modal" style="display: none;">
+          <div class="modal-content card" style="max-width: 700px;">
+            <div class="modal-header">
+              <h3 id="marketplace-modal-title">Post Listing</h3>
+              <button class="modal-close" id="marketplace-modal-close-btn">&times;</button>
+            </div>
+            <form id="marketplace-post-form">
+              <input type="hidden" id="edit-listing-id">
+
+              <div class="form-group">
+                <label>Category *</label>
+                <select id="edit-listing-type" required>
+                  <option value="">Select category...</option>
+                  <option value="buying">🔍 Buy</option>
+                  <option value="selling">🏷️ Sell</option>
+                  <option value="for_hire">👷 For Hire</option>
+                  <option value="for_sale">📦 For Sale</option>
+                  <option value="community">📣 Community Announcements</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Title *</label>
+                <input type="text" id="edit-listing-title" placeholder="E.g., Used Truck for Sale, Seeking Ranch Hand" required maxlength="100">
+              </div>
+
+              <div class="form-group">
+                <label>Description *</label>
+                <textarea id="edit-listing-description" rows="5" placeholder="Provide details about your listing..." required maxlength="1000"></textarea>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Price (optional)</label>
+                  <input type="text" id="edit-listing-price" placeholder="$1,000 or Best Offer">
+                </div>
+                <div class="form-group">
+                  <label>County *</label>
+                  <select id="edit-listing-county" required>
+                    <option value="">Select county...</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Location (Montana City/County) *</label>
+                <input type="text" id="edit-listing-location" placeholder="E.g., Great Falls, Missoula County" required>
+              </div>
+
+              <div class="form-group">
+                <label>Image *</label>
+                <input type="file" id="edit-listing-image" accept="image/*">
+                <small class="form-note">Upload at least one image for your post.</small>
+              </div>
+
+              <div class="form-group">
+                <label>Contact Name *</label>
+                <input type="text" id="edit-listing-contact-name" placeholder="Your name" required>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Contact Email *</label>
+                  <input type="email" id="edit-listing-contact-email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                  <label>Contact Phone</label>
+                  <input type="tel" id="edit-listing-contact-phone" placeholder="(406) 555-1234">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Listing Duration</label>
+                <select id="edit-listing-duration">
+                  <option value="7">7 days</option>
+                  <option value="14">14 days</option>
+                  <option value="30" selected>30 days</option>
+                  <option value="60">60 days</option>
+                  <option value="90">90 days</option>
+                </select>
+              </div>
+
+              <div class="modal-footer">
+                <button type="button" class="nav-btn" id="marketplace-modal-cancel-btn">Cancel</button>
+                <button type="button" class="nav-btn danger" id="marketplace-delete-btn" style="display: none;">Delete Listing</button>
+                <button type="submit" class="submit-btn">Post Listing</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Marketplace View Modal -->
+        <div class="modal" id="marketplace-view-modal" style="display: none;">
+          <div class="modal-content card" style="max-width: 760px;">
+            <div class="modal-header">
+              <h3 id="marketplace-view-title">Marketplace Listing</h3>
+              <button class="modal-close" id="marketplace-view-close-btn">&times;</button>
+            </div>
+            <div class="city-modal-body">
+              <img id="marketplace-view-image" alt="Listing image" style="width: 100%; max-height: 340px; object-fit: cover; border-radius: 10px; margin-bottom: 16px;">
+              <div class="marketplace-item-meta" style="margin-bottom: 12px;">
+                <span id="marketplace-view-price"></span>
+                <span id="marketplace-view-location"></span>
+                <span id="marketplace-view-date"></span>
+              </div>
+              <p id="marketplace-view-description"></p>
+              <div style="margin-top: 16px;">
+                <h4 style="margin-bottom: 8px;">Contact</h4>
+                <p id="marketplace-view-contact"></p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- City Page Modal -->
@@ -825,6 +1040,29 @@
       <section class="form-section" id="business-form-section" style="display: none;">
         <div class="card form-card">
           <h2>Business Directory Listing</h2>
+          <div class="form-group">
+            <label>Choose Your Plan</label>
+            <div class="form-row">
+              <label class="card" style="padding: 12px; flex: 1; cursor: pointer;">
+                <input type="radio" name="biz-plan" id="biz-plan-free" value="free" checked>
+                <strong>Free</strong><br>
+                <small>Basic listing</small><br>
+                <small>$0 / month</small>
+              </label>
+              <label class="card" style="padding: 12px; flex: 1; cursor: pointer;">
+                <input type="radio" name="biz-plan" id="biz-plan-pro" value="pro">
+                <strong>Pro</strong><br>
+                <small>Featured + leads + analytics</small><br>
+                <small>$29 / month</small>
+              </label>
+              <label class="card" style="padding: 12px; flex: 1; cursor: pointer;">
+                <input type="radio" name="biz-plan" id="biz-plan-premium" value="premium">
+                <strong>Premium</strong><br>
+                <small>Homepage feature + social shoutout</small><br>
+                <small>$79 / month</small>
+              </label>
+            </div>
+          </div>
           <form id="business-form">
             <div class="form-row">
               <div class="form-group">
@@ -864,8 +1102,16 @@
               <label>Icon</label>
               <input type="text" id="biz-icon" placeholder="🏪" maxlength="2">
             </div>
+            <div class="form-group">
+              <label>Billing Status</label>
+              <select id="biz-billing-status">
+                <option value="active" selected>Active</option>
+                <option value="past_due">Past Due</option>
+                <option value="canceled">Canceled</option>
+              </select>
+            </div>
             <button type="submit" class="submit-btn">Add Business Listing</button>
-            <p class="form-note">$5/month subscription • Cancel anytime</p>
+            <p class="form-note">Simple plans: Free, Pro, Premium — upgrade anytime.</p>
           </form>
         </div>
       </section>
@@ -1005,7 +1251,7 @@
           <div class="auth-tab-content" id="auth-tab-signin">
             <div class="auth-header">
               <h2>Welcome Back</h2>
-              <p>Sign in to your Montana Explorer account</p>
+              <p>Sign in to your Montana Insight Portal account</p>
             </div>
             <div id="signin-error" class="auth-error" style="display: none;"></div>
             <form id="signin-form">
@@ -1026,7 +1272,7 @@
           <!-- Register Form -->
           <div class="auth-tab-content" id="auth-tab-register" style="display: none;">
             <div class="auth-header">
-              <h2>Join Montana Explorer</h2>
+              <h2>Join Montana Insight Portal</h2>
               <p>Create your account and start earning awards</p>
             </div>
             <div id="register-error" class="auth-error" style="display: none;"></div>
@@ -1317,8 +1563,8 @@
       <section class="awards-page-section" id="awards-page-section" style="display: none;">
         <div class="card awards-page-card">
           <div class="awards-page-header">
-            <h2>🏆 Montana Explorer Top 20 Leaderboard</h2>
-            <p class="awards-page-subtitle">The most knowledgeable and helpful Montana explorers</p>
+            <h2>🏆 Montana Insight Portal Top 20 Leaderboard</h2>
+            <p class="awards-page-subtitle">The most knowledgeable and helpful Montana community members</p>
             <button class="nav-btn" id="awards-page-close-btn">Back to Map</button>
           </div>
 
@@ -1580,7 +1826,27 @@
             </label>
             <label class="layer-item">
               <input type="checkbox" class="layer-checkbox" data-layer="ghost-towns">
-              <span>👻 Ghost Towns</span>
+              <span>👻 Ghost Towns <span class="layer-badge">Status</span></span>
+            </label>
+          </div>
+
+          <div class="layer-group">
+            <h4>🕵️ Hidden History</h4>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="copper-king-era">
+              <span>⛏️ Layer A: Copper King Era</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="indigenous-heritage">
+              <span>🪶 Layer B: Indigenous Heritage</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="film-locations">
+              <span>🎬 Layer C: Film Locations</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="wildlife-hotspots">
+              <span>🦢 Layer D: Wildlife Hotspots</span>
             </label>
           </div>
           
@@ -1614,6 +1880,57 @@
             <span class="hud-location" id="hud-location">Montana</span>
           </div>
         </div>
+
+        <div class="map-insights-grid">
+          <section class="map-widget big-sky-widget" id="big-sky-dashboard">
+            <div class="map-widget-header">
+              <h3>🏔️ Big Sky Dashboard</h3>
+              <div class="big-sky-tools">
+                <button class="nav-btn" id="big-sky-refresh-btn" type="button">Refresh</button>
+                <div class="big-sky-legend-wrap">
+                  <button class="nav-btn big-sky-legend-btn" id="big-sky-legend-btn" type="button" aria-label="Show data sources">ⓘ Sources</button>
+                  <div class="big-sky-legend-tooltip" id="big-sky-legend-tooltip" role="note">
+                    <strong>Data Sources</strong>
+                    <p>Snowpack: USDA NRCS AWDB SNOTEL daily SWE observations.</p>
+                    <p>Streamflow: USGS NWIS instantaneous discharge (cfs).</p>
+                    <p id="big-sky-legend-meta">Latest timestamps loading...</p>
+                    <p class="legend-caveat">Caveat: station outages, telemetry lag, and seasonal access can delay updates.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="map-widget-subtitle">Montana at a glance: snowpack, river flow, and today in history.</p>
+            <div class="big-sky-grid">
+              <div>
+                <h4>Current SNOTEL Snowpack</h4>
+                <div id="big-sky-snotel" class="big-sky-list">
+                  <p class="empty-state">Loading SNOTEL data...</p>
+                </div>
+              </div>
+              <div>
+                <h4>Major River Streamflow</h4>
+                <div id="big-sky-streamflow" class="big-sky-list">
+                  <p class="empty-state">Loading streamflow data...</p>
+                </div>
+              </div>
+            </div>
+            <div class="big-sky-fact" id="big-sky-fact">
+              <h4>📚 History Fact of the Day</h4>
+              <p class="empty-state">Loading historical fact...</p>
+            </div>
+            <p class="big-sky-updated" id="big-sky-updated">Last refresh: --</p>
+          </section>
+
+          <section class="map-widget ghost-town-widget" id="ghost-town-tracker">
+            <div class="map-widget-header">
+              <h3>👻 Ghost Town Status Tracker</h3>
+            </div>
+            <p class="map-widget-subtitle">Preservation meter, accessibility status, and teacher notes curated for field learning.</p>
+            <div id="ghost-town-status-list" class="ghost-town-status-list">
+              <p class="empty-state">Loading ghost town statuses...</p>
+            </div>
+          </section>
+        </div>
       </section>
 
       <!-- Information Grid -->
@@ -1640,7 +1957,7 @@
     </main>
 
     <footer>
-      <p>&copy; 2026 Montana County Explorer</p>
+      <p>&copy; 2026 Montana Insight Portal</p>
       <p class="last-updated" id="last-updated"></p>
       <button id="admin-btn" class="admin-access-button" title="Admin Panel Access">⚙️</button>
     </footer>
@@ -1650,8 +1967,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=20260219b"></script>
-  <script src="config.js?v=20260219b"></script>
-  <script src="app.js?v=20260219b"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 </body>
 </html>

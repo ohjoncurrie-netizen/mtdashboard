@@ -58,6 +58,7 @@ class MTApp {
     this._eventsAllCache = []; // Cache for community events page filtering
     this._marketplaceListings = [];
     this._currentShareEvent = null;
+    this._bigSkyRefreshTimer = null;
   }
 
   async init() {
@@ -79,6 +80,8 @@ class MTApp {
     // Initialize layer controller and HUD
     this.initializeLayerController();
     this.initializeHUD();
+    this.initializeGhostTownTracker();
+    this.initializeBigSkyDashboard();
 
     // Wait for Google Maps with a timeout (only needed for geocoder)
     const googleMapsReady = await Promise.race([
@@ -1785,12 +1788,46 @@ class MTApp {
   }
 
   // ===== ADMIN PANEL METHODS =====
+
+  setAdminMapSplitMode(enabled) {
+    document.body.classList.toggle('admin-map-split', enabled);
+  }
+
+  showAdminMapSplitView() {
+    const adminSection = document.getElementById('admin-section');
+    const mapSection = document.getElementById('map-section');
+    const sectionsToHide = [
+      'business-form-section',
+      'county-page',
+      'city-page',
+      'directory-section',
+      'info-section',
+      'discussion-section',
+      'events-section',
+      'awards-page-section',
+      'marketplace-section'
+    ];
+
+    sectionsToHide.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    if (adminSection) adminSection.style.display = 'block';
+    if (mapSection) mapSection.style.display = 'block';
+    this.setAdminMapSplitMode(true);
+
+    if (this.map) {
+      setTimeout(() => this.map.invalidateSize(), 80);
+    }
+  }
   
   toggleAdminPanel() {
     const adminSection = document.getElementById('admin-section');
     const otherSections = ['business-form-section', 'map-section', 'county-page', 'city-page', 'directory-section'];
     
     if (adminSection.style.display === 'none') {
+      this.setAdminMapSplitMode(false);
       adminSection.style.display = 'block';
       otherSections.forEach(id => {
         const el = document.getElementById(id);
@@ -1807,6 +1844,7 @@ class MTApp {
         document.getElementById('admin-dashboard').style.display = 'none';
       }
     } else {
+      this.setAdminMapSplitMode(false);
       adminSection.style.display = 'none';
       const mapSection = document.querySelector('.map-section');
       if (mapSection) mapSection.style.display = 'block';
@@ -1855,6 +1893,7 @@ class MTApp {
   async handleAdminLogout() {
     ADMIN_CONFIG.isLoggedIn = false;
     if (this.ds) await this.ds.logout();
+    this.setAdminMapSplitMode(false);
     document.getElementById('admin-dashboard').style.display = 'none';
     document.getElementById('admin-login').style.display = 'block';
     document.getElementById('admin-section').style.display = 'none';
@@ -1906,33 +1945,82 @@ class MTApp {
       name,
       data: COUNTY_DATA[fips] || null
     }));
+
+    this.allCounties.sort((a, b) => a.name.localeCompare(b.name));
     
     this.renderCountyList(this.allCounties);
   }
 
   renderCountyList(counties) {
     const countyList = document.getElementById('county-list');
+    const summaryEl = document.getElementById('county-list-summary');
     if (!countyList) return;
+
+    const safeCounties = [...counties].sort((a, b) => {
+      const aHasData = !!(a.data && Object.keys(a.data).length > 0);
+      const bHasData = !!(b.data && Object.keys(b.data).length > 0);
+      if (aHasData !== bHasData) return aHasData ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    const customizedCount = safeCounties.filter(c => c.data && Object.keys(c.data).length > 0).length;
+    if (summaryEl) {
+      summaryEl.textContent = `${safeCounties.length} counties • ${customizedCount} customized • ${safeCounties.length - customizedCount} default`;
+    }
     
-    if (counties.length === 0) {
+    if (safeCounties.length === 0) {
       countyList.innerHTML = '<p class="empty-state">No counties found</p>';
       return;
     }
     
-    countyList.innerHTML = counties.map(county => {
+    countyList.innerHTML = safeCounties.map(county => {
       const hasData = county.data && Object.keys(county.data).length > 0;
+      const countyData = county.data || {};
+      const safeCountyName = county.name.replace(/'/g, "\\'");
+      const completionFields = [
+        countyData.description,
+        countyData.population,
+        countyData.seat,
+        countyData.established,
+        countyData.area,
+        countyData.website,
+        countyData.poi,
+        countyData.heroImage
+      ];
+      const filled = completionFields.filter(value => value && String(value).trim()).length;
+      const completionPct = Math.round((filled / completionFields.length) * 100);
+
+      const previewPieces = [countyData.seat ? `Seat: ${countyData.seat}` : null, countyData.population ? `Pop: ${countyData.population}` : null]
+        .filter(Boolean)
+        .join(' • ');
+
       return `
-        <div class="county-item" data-fips="${county.fips}">
-          <div class="county-item-info">
-            <h4>${county.name}</h4>
-            <p>FIPS: ${county.fips}</p>
+        <div class="county-admin-row" data-fips="${county.fips}">
+          <div class="county-admin-main">
+            <div class="county-admin-title-row">
+              <h4>${county.name}</h4>
+              <span class="status-badge ${hasData ? 'has-data' : 'no-data'}">
+                ${hasData ? 'Customized' : 'Default'}
+              </span>
+            </div>
+            <p class="county-admin-meta">FIPS ${county.fips}${previewPieces ? ` • ${this.escapeHtml(previewPieces)}` : ''}</p>
+            <div class="county-admin-completion">
+              <div class="county-admin-completion-head">
+                <span>Content completion</span>
+                <span>${completionPct}% (${filled}/${completionFields.length} fields)</span>
+              </div>
+              <div class="county-admin-meter"><span style="width:${completionPct}%"></span></div>
+            </div>
           </div>
-          <div class="county-item-status">
-            <span class="status-badge ${hasData ? 'has-data' : 'no-data'}">
-              ${hasData ? '✓ Customized' : 'Default'}
-            </span>
-            <button class="edit-btn" onclick="app.openCountyEditor('${county.fips}', '${county.name}')">
-              Edit
+          <div class="county-admin-actions">
+            <button class="nav-btn county-quick-btn" onclick="window.mtApp.openCountyPage('${county.fips}', '${safeCountyName}')">
+              View County Page
+            </button>
+            <button class="nav-btn county-quick-btn" onclick="window.mtApp.openCountyInMap('${county.fips}', '${safeCountyName}')">
+              Open in Map
+            </button>
+            <button class="submit-btn county-edit-btn" onclick="window.mtApp.openCountyEditor('${county.fips}', '${safeCountyName}')">
+              Edit County
             </button>
           </div>
         </div>
@@ -2321,6 +2409,7 @@ class MTApp {
   }
 
   showCountyPage() {
+    this.setAdminMapSplitMode(false);
     const countyPage = document.getElementById('county-page');
     const mapSection = document.getElementById('map-section');
     const infoSection = document.getElementById('info-section');
@@ -2336,6 +2425,7 @@ class MTApp {
   }
 
   showMapView() {
+    this.setAdminMapSplitMode(false);
     const countyPage = document.getElementById('county-page');
     const mapSection = document.getElementById('map-section');
     const cityPage = document.getElementById('city-page');
@@ -2440,6 +2530,37 @@ class MTApp {
     this.setBreadcrumb({ countyName });
     this.setHash(`/montana/${this.slugify(countyName)}`);
     this.trackPageView('county', fipsCode, countyName);
+  }
+
+  openCountyInMap(fipsCode, countyName) {
+    this.showAdminMapSplitView();
+
+    if (!this.countyLayer) return;
+
+    let targetLayer = null;
+    this.countyLayer.eachLayer(layer => {
+      if (targetLayer) return;
+      const feature = layer.feature || {};
+      const props = feature.properties || {};
+      const featureFips = props.GEOID || props.COUNTYFP || props.FIPS || props.fips;
+      if (String(featureFips) === String(fipsCode)) {
+        targetLayer = layer;
+      }
+    });
+
+    if (!targetLayer) {
+      this.showNotification(`Could not find ${countyName} on the current map layer.`, 'error');
+      return;
+    }
+
+    if (targetLayer.getBounds) {
+      this.map.fitBounds(targetLayer.getBounds(), { padding: [20, 20] });
+    }
+    if (targetLayer.openPopup) {
+      setTimeout(() => targetLayer.openPopup(), 150);
+    }
+
+    this.updateHUD(`Focused map on ${countyName}.`, countyName);
   }
 
   handleRouteFromHash() {
@@ -2819,14 +2940,124 @@ class MTApp {
       'ghost-towns': {
         name: 'Historic Ghost Towns',
         features: [
-          { name: 'Bannack', lat: 45.1617, lng: -112.9994 },
-          { name: 'Virginia City', lat: 45.2938, lng: -111.9428 },
-          { name: 'Garnet', lat: 46.8833, lng: -113.3667 },
-          { name: 'Coolidge', lat: 45.8833, lng: -109.7167 },
-          { name: 'Granite', lat: 46.5667, lng: -113.3833 }
+          {
+            name: 'Bannack',
+            lat: 45.1617,
+            lng: -112.9994,
+            preservationMeter: 92,
+            status: 'Fully Preserved',
+            accessibility: 'Open seasonally via paved + short gravel access',
+            teachersNote: 'Bannack held over 3,000 residents in its boom years, but fewer than a dozen stayed year-round by 1950.'
+          },
+          {
+            name: 'Virginia City',
+            lat: 45.2938,
+            lng: -111.9428,
+            preservationMeter: 88,
+            status: 'Living Ghost Town',
+            accessibility: 'Open year-round; museums and boardwalk tours in peak season',
+            teachersNote: 'Virginia City survived partly because tourism became its second economy after hard-rock mining faded.'
+          },
+          {
+            name: 'Garnet',
+            lat: 46.8833,
+            lng: -113.3667,
+            preservationMeter: 67,
+            status: 'Substantial Structures Remain',
+            accessibility: 'Best access late spring through fall; winter routes limited',
+            teachersNote: 'Many cabins at Garnet were re-used by families into the 1930s, well after the classic “rush” narrative ended.'
+          },
+          {
+            name: 'Coolidge',
+            lat: 45.8833,
+            lng: -109.7167,
+            preservationMeter: 34,
+            status: 'Mostly Foundations',
+            accessibility: 'Backcountry access; high-clearance recommended',
+            teachersNote: 'Coolidge was a company town tied to one mining system—when financing vanished, the community collapsed quickly.'
+          },
+          {
+            name: 'Kendall',
+            lat: 47.2702,
+            lng: -109.7154,
+            preservationMeter: 24,
+            status: 'Mostly Foundations',
+            accessibility: 'Public roads nearby; on-site remains are fragile',
+            teachersNote: 'Kendall had electric lights early for a frontier camp, but cyanide-based extraction also left a complex environmental legacy.'
+          },
+          {
+            name: 'Granite',
+            lat: 46.5667,
+            lng: -113.3833,
+            preservationMeter: 46,
+            status: 'Partial Ruins',
+            accessibility: 'Summer/fall access only; steep mountain roads',
+            teachersNote: 'Granite’s hilltop location made ore transport expensive—profitability hinged as much on freight cost as metal price.'
+          }
         ],
         color: '#A9A9A9',
-        fact: 'Bannack was Montana\'s first territorial capital in 1864, now a well-preserved ghost town with over 50 structures!'
+        fact: 'Bannack was Montana\'s first territorial capital in 1864, and ghost town preservation levels still change with weather, access, and restoration work.',
+        popupBuilder: (feature) => {
+          const meter = Math.max(0, Math.min(100, Number(feature.preservationMeter) || 0));
+          return `
+            <div class="layer-popup ghost-popup">
+              <strong>${this.escapeHtml(feature.name)}</strong>
+              <div class="ghost-popup-status">Status: ${this.escapeHtml(feature.status || 'Unknown')}</div>
+              <div class="ghost-popup-access">Access: ${this.escapeHtml(feature.accessibility || 'Varies by season')}</div>
+              <div class="ghost-popup-meter"><span style="width:${meter}%"></span></div>
+              <p class="ghost-popup-note">📘 Teacher’s Note: ${this.escapeHtml(feature.teachersNote || '')}</p>
+            </div>
+          `;
+        }
+      },
+      'copper-king-era': {
+        name: 'Layer A: Copper King Era (Mines & Mansions)',
+        features: [
+          { name: 'Butte Mining District', lat: 46.0038, lng: -112.5348, note: 'Once called “the richest hill on Earth,” Butte linked geology to global industrial power.' },
+          { name: 'Anselmo Mine Yard', lat: 46.0068, lng: -112.5179, note: 'Headframes became symbols of industrial identity and labor organizing in Montana.' },
+          { name: 'Copper King Mansion (Butte)', lat: 46.0108, lng: -112.5387, note: 'Lavish mansions reflected Gilded Age wealth concentration from extractive industries.' },
+          { name: 'Original Governor\'s Mansion (Helena)', lat: 46.5892, lng: -112.0318, note: 'Political influence and mining money often moved through the same social networks.' }
+        ],
+        color: '#B45309',
+        fact: 'The Copper King era transformed Montana from frontier camps into globally connected industrial centers.',
+        popupBuilder: (feature) => `<strong>${this.escapeHtml(feature.name)}</strong><br><em>Layer A: Copper King Era</em><br>${this.escapeHtml(feature.note || '')}`
+      },
+      'indigenous-heritage': {
+        name: 'Layer B: Indigenous Heritage & Tribal Lands',
+        features: [
+          { name: 'Blackfeet Nation', lat: 48.5, lng: -113.0, radius: 50000, note: 'Keep in mind these are educational reference areas, not legal boundary maps.' },
+          { name: 'Crow Nation', lat: 45.5, lng: -107.5, radius: 40000, note: 'Oral history and language revitalization are central to living heritage today.' },
+          { name: 'Salish & Kootenai (CSKT)', lat: 47.5, lng: -114.0, radius: 35000, note: 'Treaty history and stewardship practices continue shaping policy and education.' },
+          { name: 'Northern Cheyenne', lat: 45.6, lng: -106.5, radius: 30000, note: 'Community-led education work documents both resistance and cultural continuity.' },
+          { name: 'Fort Peck (Assiniboine & Sioux)', lat: 48.2, lng: -105.5, radius: 35000, note: 'Regional history includes both displacement and modern sovereignty efforts.' }
+        ],
+        color: '#92400E',
+        fact: 'Montana\'s Indigenous history is living history—rooted in language, land, and sovereign communities.',
+        popupBuilder: (feature) => `<strong>${this.escapeHtml(feature.name)}</strong><br><em>Layer B: Indigenous Heritage</em><br>${this.escapeHtml(feature.note || '')}`
+      },
+      'film-locations': {
+        name: 'Layer C: Modern Film Locations',
+        features: [
+          { name: 'Chief Joseph Ranch (Yellowstone series)', lat: 45.1168, lng: -113.9968, note: 'Filming can reshape local tourism economics and community identity.' },
+          { name: 'Missoula Valley (A River Runs Through It)', lat: 46.8721, lng: -113.9940, note: 'Film narratives often blend multiple real locations into one on-screen place.' },
+          { name: 'Paradise Valley (Yellowstone scenes)', lat: 45.6486, lng: -110.5609, note: 'Landscape cinematography helped brand Montana internationally as “Big Sky Country.”' },
+          { name: 'Glacier Region (The Revenant area shoots)', lat: 48.6967, lng: -113.7183, note: 'Production logistics in remote terrain mirror many historical travel constraints.' }
+        ],
+        color: '#2563EB',
+        fact: 'Montana\'s landscapes keep drawing film and TV productions, connecting place-based history with modern media.',
+        popupBuilder: (feature) => `<strong>${this.escapeHtml(feature.name)}</strong><br><em>Layer C: Film Locations</em><br>${this.escapeHtml(feature.note || '')}`
+      },
+      'wildlife-hotspots': {
+        name: 'Layer D: Wildlife Hotspots',
+        features: [
+          { name: 'Freezeout Lake WMA (Snow Goose Migration)', lat: 47.8044, lng: -111.6386, note: 'Peak migration windows can bring tens of thousands of birds in concentrated pulses.' },
+          { name: 'National Bison Range', lat: 47.80, lng: -114.17, note: 'A key site for understanding conservation history and species recovery debates.' },
+          { name: 'Charles M. Russell NWR', lat: 47.8828, lng: -107.8472, radius: 70000, note: 'Large habitat mosaics matter more for many species than any single protected parcel.' },
+          { name: 'Red Rock Lakes NWR', lat: 44.6118, lng: -111.9434, note: 'High-elevation wetlands are critical stopovers for migratory birds.' }
+        ],
+        color: '#059669',
+        fact: 'Wildlife hotspots reveal how migration, water, and land management intersect across Montana.',
+        popupBuilder: (feature) => `<strong>${this.escapeHtml(feature.name)}</strong><br><em>Layer D: Wildlife Hotspots</em><br>${this.escapeHtml(feature.note || '')}`
       },
       mines: {
         name: 'Active Mines',
@@ -3080,13 +3311,16 @@ class MTApp {
       // Also show fallback trailhead markers at low zoom
       if (layerInfo.features && layerInfo.features.length) {
         layerInfo.features.forEach(feature => {
+          const popupContent = layerInfo.popupBuilder
+            ? layerInfo.popupBuilder(feature)
+            : `<strong>${feature.name}</strong><br><em>${layerInfo.name}</em>`;
           L.circleMarker([feature.lat, feature.lng], {
             color: layerInfo.color,
             fillColor: layerInfo.color,
             fillOpacity: 0.85,
             radius: 7,
             weight: 2
-          }).bindPopup(`<strong>${feature.name}</strong><br><em>${layerInfo.name}</em>`).addTo(layerGroup);
+          }).bindPopup(popupContent).addTo(layerGroup);
         });
       }
       layerGroup.addTo(this.map);
@@ -3096,6 +3330,10 @@ class MTApp {
     }
 
     layerInfo.features.forEach(feature => {
+      const popupContent = layerInfo.popupBuilder
+        ? layerInfo.popupBuilder(feature)
+        : `<strong>${feature.name}</strong><br>${layerInfo.name}`;
+
       if (feature.radius) {
         // Create circle for area features
         const circle = L.circle([feature.lat, feature.lng], {
@@ -3104,7 +3342,7 @@ class MTApp {
           fillOpacity: 0.2,
           radius: feature.radius,
           weight: 2
-        }).bindPopup(`<strong>${feature.name}</strong><br>${layerInfo.name}`);
+        }).bindPopup(popupContent);
         
         circle.addTo(layerGroup);
       } else {
@@ -3115,7 +3353,7 @@ class MTApp {
           fillOpacity: 0.7,
           radius: 8,
           weight: 2
-        }).bindPopup(`<strong>${feature.name}</strong><br>${layerInfo.name}`);
+        }).bindPopup(popupContent);
         
         marker.addTo(layerGroup);
       }
@@ -3248,6 +3486,369 @@ class MTApp {
     if (hudPanel) {
       hudPanel.classList.toggle('hidden');
     }
+  }
+
+  initializeBigSkyDashboard() {
+    const refreshBtn = document.getElementById('big-sky-refresh-btn');
+    const legendBtn = document.getElementById('big-sky-legend-btn');
+    const legendTooltip = document.getElementById('big-sky-legend-tooltip');
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => this.refreshBigSkyDashboard(true));
+    }
+
+    if (legendBtn && legendTooltip) {
+      legendBtn.addEventListener('click', () => {
+        legendTooltip.classList.toggle('visible');
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!legendTooltip.classList.contains('visible')) return;
+        if (event.target.closest('#big-sky-legend-btn') || event.target.closest('#big-sky-legend-tooltip')) return;
+        legendTooltip.classList.remove('visible');
+      });
+    }
+
+    this.refreshBigSkyDashboard();
+
+    if (this._bigSkyRefreshTimer) clearInterval(this._bigSkyRefreshTimer);
+    this._bigSkyRefreshTimer = setInterval(() => {
+      this.refreshBigSkyDashboard();
+    }, 30 * 60 * 1000);
+  }
+
+  async refreshBigSkyDashboard(isManualRefresh = false) {
+    const refreshBtn = document.getElementById('big-sky-refresh-btn');
+    const updatedEl = document.getElementById('big-sky-updated');
+
+    if (refreshBtn && isManualRefresh) {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Refreshing...';
+    }
+
+    try {
+      const [snotelData, streamflowData] = await Promise.all([
+        this.fetchSnotelSnowpackData(),
+        this.fetchStreamflowData()
+      ]);
+
+      this.renderBigSkySnotel(snotelData);
+      this.renderBigSkyStreamflow(streamflowData);
+      this.updateBigSkyLegendMeta(snotelData, streamflowData);
+
+      const fact = this.getHistoryFactOfTheDay();
+      const factEl = document.getElementById('big-sky-fact');
+      if (factEl) {
+        factEl.innerHTML = `
+          <h4>📚 History Fact of the Day</h4>
+          <p><strong>${this.escapeHtml(fact.title)}</strong></p>
+          <p>${this.escapeHtml(fact.text)}</p>
+        `;
+      }
+
+      if (updatedEl) {
+        updatedEl.textContent = `Last refresh: ${new Date().toLocaleString()} (AWDB + USGS)`;
+      }
+    } catch (error) {
+      console.error('Big Sky dashboard refresh failed:', error);
+      if (updatedEl) {
+        updatedEl.textContent = 'Last refresh failed. Showing latest available values.';
+      }
+    } finally {
+      if (refreshBtn) {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = 'Refresh';
+      }
+    }
+  }
+
+  async fetchSnotelSnowpackData() {
+    const stations = [
+      { triplet: '924:MT:SNTL', label: 'West Yellowstone' },
+      { triplet: '876:MT:SNTL', label: 'Wood Creek' },
+      { triplet: '862:MT:SNTL', label: 'White Mill' },
+      { triplet: '858:MT:SNTL', label: 'Whiskey Creek' }
+    ];
+
+    const endDate = new Date();
+    const beginDate = new Date(endDate);
+    beginDate.setDate(endDate.getDate() - 14);
+
+    const toIsoDate = (date) => date.toISOString().slice(0, 10);
+    const params = new URLSearchParams({
+      stationTriplets: stations.map(station => station.triplet).join(','),
+      elements: 'WTEQ',
+      duration: 'DAILY',
+      beginDate: toIsoDate(beginDate),
+      endDate: toIsoDate(endDate)
+    });
+
+    const url = `https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1/data?${params.toString()}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`SNOTEL request failed (${response.status})`);
+
+    const payload = await response.json();
+    const byTriplet = new Map(payload.map(row => [row.stationTriplet, row]));
+
+    return stations.map(station => {
+      const row = byTriplet.get(station.triplet);
+      const series = row?.data?.find(item => item.stationElement?.elementCode === 'WTEQ')?.values || [];
+      const valid = series.filter(point => typeof point.value === 'number');
+      const latest = valid.length ? valid[valid.length - 1] : null;
+      const prior = valid.length > 7 ? valid[valid.length - 8] : null;
+      const trend = latest && prior ? latest.value - prior.value : null;
+
+      return {
+        station: station.label,
+        sweInches: latest?.value ?? null,
+        trendInches7d: trend,
+        observedDate: latest?.date || null
+      };
+    });
+  }
+
+  renderBigSkySnotel(snotelData) {
+    const container = document.getElementById('big-sky-snotel');
+    if (!container) return;
+
+    if (!snotelData || snotelData.length === 0) {
+      container.innerHTML = '<p class="empty-state">No SNOTEL data available.</p>';
+      return;
+    }
+
+    container.innerHTML = snotelData.map(item => {
+      if (item.sweInches === null) {
+        return `
+          <div class="big-sky-row">
+            <div class="big-sky-row-title">${this.escapeHtml(item.station)}</div>
+            <div class="big-sky-row-meta">No recent SWE reading available</div>
+          </div>
+        `;
+      }
+
+      const meterPct = Math.max(5, Math.min(100, Math.round((item.sweInches / 20) * 100)));
+      const trendText = item.trendInches7d === null
+        ? '7d trend unavailable'
+        : `${item.trendInches7d >= 0 ? '+' : ''}${item.trendInches7d.toFixed(1)} in (7d)`;
+
+      return `
+        <div class="big-sky-row">
+          <div class="big-sky-row-title">${this.escapeHtml(item.station)} <span>${item.sweInches.toFixed(1)} in SWE</span></div>
+          <div class="big-sky-meter"><span style="width:${meterPct}%"></span></div>
+          <div class="big-sky-row-meta">${this.escapeHtml(trendText)} • Observed ${this.escapeHtml(item.observedDate || 'n/a')}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async fetchStreamflowData() {
+    const sites = [
+      { id: '06054500', label: 'Missouri at Toston', low: 1500, high: 8000 },
+      { id: '06192500', label: 'Yellowstone at Livingston', low: 1000, high: 7000 },
+      { id: '06214500', label: 'Yellowstone at Billings', low: 1800, high: 12000 },
+      { id: '12340500', label: 'Clark Fork above Missoula', low: 900, high: 9000 }
+    ];
+
+    const params = new URLSearchParams({
+      format: 'json',
+      sites: sites.map(site => site.id).join(','),
+      parameterCd: '00060',
+      siteStatus: 'all'
+    });
+
+    const url = `https://waterservices.usgs.gov/nwis/iv/?${params.toString()}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Streamflow request failed (${response.status})`);
+
+    const payload = await response.json();
+    const series = payload?.value?.timeSeries || [];
+    const bySite = new Map();
+
+    series.forEach(entry => {
+      const siteId = entry?.sourceInfo?.siteCode?.[0]?.value;
+      if (siteId) bySite.set(siteId, entry);
+    });
+
+    return sites.map(site => {
+      const entry = bySite.get(site.id);
+      const values = entry?.values?.[0]?.value || [];
+      const latest = values.length ? values[values.length - 1] : null;
+      const prior = values.length > 1 ? values[values.length - 2] : null;
+      const cfs = latest ? Number(latest.value) : null;
+      const trend = latest && prior ? Number(latest.value) - Number(prior.value) : null;
+
+      let status = 'Unavailable';
+      if (cfs !== null && !Number.isNaN(cfs)) {
+        if (cfs < site.low) status = 'Low';
+        else if (cfs > site.high) status = 'High';
+        else status = 'Normal';
+      }
+
+      return {
+        site: site.label,
+        cfs: Number.isNaN(cfs) ? null : cfs,
+        trend,
+        status,
+        observedAt: latest?.dateTime || null
+      };
+    });
+  }
+
+  renderBigSkyStreamflow(streamflowData) {
+    const container = document.getElementById('big-sky-streamflow');
+    if (!container) return;
+
+    if (!streamflowData || streamflowData.length === 0) {
+      container.innerHTML = '<p class="empty-state">No streamflow data available.</p>';
+      return;
+    }
+
+    container.innerHTML = streamflowData.map(item => {
+      if (item.cfs === null) {
+        return `
+          <div class="big-sky-row">
+            <div class="big-sky-row-title">${this.escapeHtml(item.site)}</div>
+            <div class="big-sky-row-meta">No recent discharge reading available</div>
+          </div>
+        `;
+      }
+
+      const trendText = item.trend === null
+        ? 'Trend unavailable'
+        : `${item.trend >= 0 ? '+' : ''}${Math.round(item.trend)} cfs vs prior reading`;
+
+      return `
+        <div class="big-sky-row">
+          <div class="big-sky-row-title">${this.escapeHtml(item.site)} <span>${Math.round(item.cfs).toLocaleString()} cfs</span></div>
+          <div class="big-sky-row-meta"><span class="flow-status flow-${item.status.toLowerCase()}">${this.escapeHtml(item.status)}</span> • ${this.escapeHtml(trendText)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  updateBigSkyLegendMeta(snotelData, streamflowData) {
+    const metaEl = document.getElementById('big-sky-legend-meta');
+    if (!metaEl) return;
+
+    const snotelTimes = (snotelData || []).map(item => item.observedDate).filter(Boolean);
+    const streamflowTimes = (streamflowData || []).map(item => item.observedAt).filter(Boolean);
+
+    const latestSnotel = snotelTimes.length
+      ? snotelTimes.sort((a, b) => new Date(b) - new Date(a))[0]
+      : null;
+    const latestStreamflow = streamflowTimes.length
+      ? streamflowTimes.sort((a, b) => new Date(b) - new Date(a))[0]
+      : null;
+
+    const snotelLabel = latestSnotel
+      ? new Date(latestSnotel).toLocaleString()
+      : 'n/a';
+    const streamflowLabel = latestStreamflow
+      ? new Date(latestStreamflow).toLocaleString()
+      : 'n/a';
+
+    metaEl.textContent = `Latest AWDB: ${snotelLabel} • Latest USGS: ${streamflowLabel}`;
+  }
+
+  getHistoryFactOfTheDay() {
+    const facts = [
+      {
+        title: 'Today\'s classroom lens: Mining camps became civic systems',
+        text: 'Many Montana boomtowns first built schools, newspapers, and courts to stabilize commerce before population settled permanently.'
+      },
+      {
+        title: 'Today\'s classroom lens: Railroads reshaped settlement patterns',
+        text: 'Communities with rail access often outlasted nearby camps, because freight and migration routes determined long-term viability.'
+      },
+      {
+        title: 'Today\'s classroom lens: Water rights drove local politics',
+        text: 'Across Montana, irrigation and river access shaped county-level decision making as much as party politics did.'
+      },
+      {
+        title: 'Today\'s classroom lens: Tribal resilience is ongoing history',
+        text: 'Montana history is not just frontier chronology—language recovery, governance, and land stewardship remain active today.'
+      },
+      {
+        title: 'Today\'s classroom lens: Fire and forestry are linked',
+        text: 'Historic logging patterns, drought cycles, and modern fuel loads all help explain why wildfire seasons vary across regions.'
+      },
+      {
+        title: 'Today\'s classroom lens: Tourism became a second economy',
+        text: 'Places that once relied on extraction often transitioned by interpreting local history, landscapes, and cultural heritage.'
+      }
+    ];
+
+    const today = new Date();
+    const yearStart = new Date(today.getFullYear(), 0, 0);
+    const dayIndex = Math.floor((today - yearStart) / 86400000);
+    return facts[dayIndex % facts.length];
+  }
+
+  initializeGhostTownTracker() {
+    this.renderGhostTownStatusTracker();
+
+    const list = document.getElementById('ghost-town-status-list');
+    if (!list || list.dataset.bound === 'true') return;
+
+    list.addEventListener('click', (event) => {
+      const zoomBtn = event.target.closest('.ghost-town-zoom-btn');
+      if (!zoomBtn) return;
+      const townName = zoomBtn.dataset.town;
+      if (townName) this.focusGhostTown(townName);
+    });
+
+    list.dataset.bound = 'true';
+  }
+
+  renderGhostTownStatusTracker() {
+    const list = document.getElementById('ghost-town-status-list');
+    const ghostLayer = this.layerData['ghost-towns'];
+    if (!list || !ghostLayer) return;
+
+    const towns = [...ghostLayer.features]
+      .sort((a, b) => (b.preservationMeter || 0) - (a.preservationMeter || 0));
+
+    if (!towns.length) {
+      list.innerHTML = '<p class="empty-state">No ghost town records available.</p>';
+      return;
+    }
+
+    list.innerHTML = towns.map(town => {
+      const meter = Math.max(0, Math.min(100, Number(town.preservationMeter) || 0));
+      const statusClass = town.status?.toLowerCase().includes('fully')
+        ? 'status-strong'
+        : town.status?.toLowerCase().includes('mostly foundations')
+          ? 'status-fragile'
+          : 'status-moderate';
+
+      return `
+        <div class="ghost-town-row">
+          <div class="ghost-town-row-title">
+            <strong>${this.escapeHtml(town.name)}</strong>
+            <span class="ghost-status-chip ${statusClass}">${this.escapeHtml(town.status || 'Unknown')}</span>
+          </div>
+          <div class="ghost-meter"><span style="width:${meter}%"></span></div>
+          <div class="ghost-town-row-meta">Preservation Meter: ${meter}% • ${this.escapeHtml(town.accessibility || 'Seasonal conditions vary')}</div>
+          <p class="ghost-town-teacher-note">📘 Teacher’s Note: ${this.escapeHtml(town.teachersNote || '')}</p>
+          <button class="nav-btn ghost-town-zoom-btn" data-town="${this.escapeHtml(town.name)}" type="button">Zoom to location</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  focusGhostTown(townName) {
+    const ghostLayerInfo = this.layerData['ghost-towns'];
+    const town = ghostLayerInfo?.features?.find(item => item.name === townName);
+    if (!town || !this.map) return;
+
+    if (!this.layers['ghost-towns']) {
+      this.addLayer('ghost-towns');
+      const checkbox = document.querySelector('.layer-checkbox[data-layer="ghost-towns"]');
+      if (checkbox) checkbox.checked = true;
+    }
+
+    this.map.setView([town.lat, town.lng], 10, { animate: true });
+    this.updateHUD(`${town.status} • ${town.accessibility}`, town.name);
   }
 
   // ============================================

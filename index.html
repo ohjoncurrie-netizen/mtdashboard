@@ -347,9 +347,14 @@
 
             <!-- Counties Tab -->
             <div class="admin-tab-content" id="tab-counties">
+              <div class="admin-help-box">
+                <h4>🗂️ County List & Quick Edit</h4>
+                <p>Use search, review completion status, and click <strong>Edit County</strong> to update county content fields.</p>
+              </div>
               <div class="admin-search">
                 <input type="text" id="county-search" placeholder="Search counties..." class="search-input">
               </div>
+              <p class="admin-list-summary" id="county-list-summary">Loading county summary...</p>
               
               <div class="county-list" id="county-list">
                 <p class="empty-state">Loading counties...</p>
@@ -1820,7 +1825,27 @@
             </label>
             <label class="layer-item">
               <input type="checkbox" class="layer-checkbox" data-layer="ghost-towns">
-              <span>👻 Ghost Towns</span>
+              <span>👻 Ghost Towns <span class="layer-badge">Status</span></span>
+            </label>
+          </div>
+
+          <div class="layer-group">
+            <h4>🕵️ Hidden History</h4>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="copper-king-era">
+              <span>⛏️ Layer A: Copper King Era</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="indigenous-heritage">
+              <span>🪶 Layer B: Indigenous Heritage</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="film-locations">
+              <span>🎬 Layer C: Film Locations</span>
+            </label>
+            <label class="layer-item">
+              <input type="checkbox" class="layer-checkbox" data-layer="wildlife-hotspots">
+              <span>🦢 Layer D: Wildlife Hotspots</span>
             </label>
           </div>
           
@@ -1853,6 +1878,57 @@
           <div class="hud-footer">
             <span class="hud-location" id="hud-location">Montana</span>
           </div>
+        </div>
+
+        <div class="map-insights-grid">
+          <section class="map-widget big-sky-widget" id="big-sky-dashboard">
+            <div class="map-widget-header">
+              <h3>🏔️ Big Sky Dashboard</h3>
+              <div class="big-sky-tools">
+                <button class="nav-btn" id="big-sky-refresh-btn" type="button">Refresh</button>
+                <div class="big-sky-legend-wrap">
+                  <button class="nav-btn big-sky-legend-btn" id="big-sky-legend-btn" type="button" aria-label="Show data sources">ⓘ Sources</button>
+                  <div class="big-sky-legend-tooltip" id="big-sky-legend-tooltip" role="note">
+                    <strong>Data Sources</strong>
+                    <p>Snowpack: USDA NRCS AWDB SNOTEL daily SWE observations.</p>
+                    <p>Streamflow: USGS NWIS instantaneous discharge (cfs).</p>
+                    <p id="big-sky-legend-meta">Latest timestamps loading...</p>
+                    <p class="legend-caveat">Caveat: station outages, telemetry lag, and seasonal access can delay updates.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="map-widget-subtitle">Montana at a glance: snowpack, river flow, and today in history.</p>
+            <div class="big-sky-grid">
+              <div>
+                <h4>Current SNOTEL Snowpack</h4>
+                <div id="big-sky-snotel" class="big-sky-list">
+                  <p class="empty-state">Loading SNOTEL data...</p>
+                </div>
+              </div>
+              <div>
+                <h4>Major River Streamflow</h4>
+                <div id="big-sky-streamflow" class="big-sky-list">
+                  <p class="empty-state">Loading streamflow data...</p>
+                </div>
+              </div>
+            </div>
+            <div class="big-sky-fact" id="big-sky-fact">
+              <h4>📚 History Fact of the Day</h4>
+              <p class="empty-state">Loading historical fact...</p>
+            </div>
+            <p class="big-sky-updated" id="big-sky-updated">Last refresh: --</p>
+          </section>
+
+          <section class="map-widget ghost-town-widget" id="ghost-town-tracker">
+            <div class="map-widget-header">
+              <h3>👻 Ghost Town Status Tracker</h3>
+            </div>
+            <p class="map-widget-subtitle">Preservation meter, accessibility status, and teacher notes curated for field learning.</p>
+            <div id="ghost-town-status-list" class="ghost-town-status-list">
+              <p class="empty-state">Loading ghost town statuses...</p>
+            </div>
+          </section>
         </div>
       </section>
 

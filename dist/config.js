@@ -35,6 +35,13 @@ window.DISCUSSION_POSTS = JSON.parse(localStorage.getItem('discussionPosts')) ||
 // Member profiles with ranking and awards
 window.MEMBER_PROFILES = JSON.parse(localStorage.getItem('memberProfiles')) || {};
 
+// Marketplace listings - array of marketplace items
+// Each listing: { id, type, title, description, price, location, countyFips, citySlug, 
+//                 contactName, contactEmail, contactPhone, createdAt, expiresAt, userId, 
+//                 userName, isActive, images }
+// Types: 'for-sale', 'wanted', 'hiring', 'looking-for-work'
+window.MARKETPLACE_LISTINGS = JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+
 // Analytics tracking — array of view events kept in localStorage
 // Each entry: { type, id, name, extra, ts }
 window.ANALYTICS_VIEWS = JSON.parse(localStorage.getItem('analyticsViews')) || [];

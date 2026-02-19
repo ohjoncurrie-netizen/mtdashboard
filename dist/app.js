@@ -2,6 +2,19 @@
 function initGoogleMaps() {
   window.googleMapsLoaded = true;
 }
+window.initGoogleMaps = initGoogleMaps;
+
+const {
+  ADMIN_CONFIG,
+  BUSINESSES,
+  COUNTY_DATA,
+  CITY_DATA,
+  EVENTS_DATA,
+  DISCUSSION_POSTS,
+  MEMBER_PROFILES,
+  AWARDS,
+  COUNTY_CITIES
+} = window;
 
 const COUNTY_NAME_MAP = {
   '30001': 'Beaverhead County', '30003': 'Big Horn County', '30005': 'Blaine County',
@@ -43,14 +56,17 @@ class MTApp {
     this.isUpdatingHash = false;
     this.ds = window.dataService; // Data service (Firebase or localStorage)
     this._eventsAllCache = []; // Cache for community events page filtering
+    this._marketplaceListings = [];
     this._currentShareEvent = null;
+    this._bigSkyRefreshTimer = null;
   }
 
   async init() {
     // Setup event listeners FIRST — these don't need Google Maps
     this.setupEventListeners();
     this.setupAuthListeners();
-    this.updateAuthUI(null);
+    const storedUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    this.updateAuthUI(storedUser);
 
     // Hydrate county/city data from Firebase if available
     await this.loadDataFromFirebase();
@@ -64,6 +80,8 @@ class MTApp {
     // Initialize layer controller and HUD
     this.initializeLayerController();
     this.initializeHUD();
+    this.initializeGhostTownTracker();
+    this.initializeBigSkyDashboard();
 
     // Wait for Google Maps with a timeout (only needed for geocoder)
     const googleMapsReady = await Promise.race([
@@ -425,7 +443,7 @@ class MTApp {
           });
           
           // Open popup on click
-          layer.on('click', function(e) {
+          layer.on('click', function() {
             this.openPopup();
             // Optionally zoom to county bounds
             // this._map.fitBounds(this.getBounds());
@@ -493,6 +511,16 @@ class MTApp {
         e.preventDefault();
         this.closeSidebar();
         this.showDirectory();
+      });
+    }
+
+    // Marketplace link
+    const sidebarMarketplace = document.getElementById('sidebar-marketplace');
+    if (sidebarMarketplace) {
+      sidebarMarketplace.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.closeSidebar();
+        this.showMarketplace();
       });
     }
 
@@ -769,6 +797,71 @@ class MTApp {
     if (eventDeleteBtn) {
       eventDeleteBtn.addEventListener('click', () => this.handleEventDelete());
     }
+
+    // ===== MARKETPLACE =====
+
+    // Marketplace navigation
+    const marketplaceBackBtn = document.getElementById('marketplace-back-btn');
+    if (marketplaceBackBtn) {
+      marketplaceBackBtn.addEventListener('click', () => this.showMapView());
+    }
+
+    // Marketplace auth buttons
+    const marketplaceSigninBtn = document.getElementById('marketplace-signin-btn');
+    const marketplaceRegisterBtn = document.getElementById('marketplace-register-btn');
+    if (marketplaceSigninBtn) {
+      marketplaceSigninBtn.addEventListener('click', () => this.showAuthModal('signin'));
+    }
+    if (marketplaceRegisterBtn) {
+      marketplaceRegisterBtn.addEventListener('click', () => this.showAuthModal('register'));
+    }
+
+    // Marketplace post button
+    const marketplacePostBtn = document.getElementById('marketplace-post-btn');
+    if (marketplacePostBtn) {
+      marketplacePostBtn.addEventListener('click', () => this.openMarketplacePostModal());
+    }
+
+    // Marketplace filters
+    const marketplaceFilterType = document.getElementById('marketplace-filter-type');
+    const marketplaceFilterCounty = document.getElementById('marketplace-filter-county');
+    const marketplaceSearch = document.getElementById('marketplace-search');
+    if (marketplaceFilterType) {
+      marketplaceFilterType.addEventListener('change', () => this.filterMarketplaceListings());
+    }
+    if (marketplaceFilterCounty) {
+      marketplaceFilterCounty.addEventListener('change', () => this.filterMarketplaceListings());
+    }
+    if (marketplaceSearch) {
+      marketplaceSearch.addEventListener('input', () => this.filterMarketplaceListings());
+    }
+
+    // Marketplace post form
+    const marketplacePostForm = document.getElementById('marketplace-post-form');
+    if (marketplacePostForm) {
+      marketplacePostForm.addEventListener('submit', (e) => this.handleMarketplacePost(e));
+    }
+
+    // Marketplace modal close buttons
+    const marketplaceModalCloseBtn = document.getElementById('marketplace-modal-close-btn');
+    const marketplaceModalCancelBtn = document.getElementById('marketplace-modal-cancel-btn');
+    if (marketplaceModalCloseBtn) {
+      marketplaceModalCloseBtn.addEventListener('click', () => this.closeMarketplacePostModal());
+    }
+    if (marketplaceModalCancelBtn) {
+      marketplaceModalCancelBtn.addEventListener('click', () => this.closeMarketplacePostModal());
+    }
+
+    // Marketplace delete button
+    const marketplaceDeleteBtn = document.getElementById('marketplace-delete-btn');
+    if (marketplaceDeleteBtn) {
+      marketplaceDeleteBtn.addEventListener('click', () => this.deleteMarketplaceListing());
+    }
+
+    const marketplaceViewCloseBtn = document.getElementById('marketplace-view-close-btn');
+    if (marketplaceViewCloseBtn) {
+      marketplaceViewCloseBtn.addEventListener('click', () => this.closeMarketplaceViewModal());
+    }
   }
 
   toggleMapVisibility() {
@@ -807,26 +900,37 @@ class MTApp {
     }
   }
 
-  toggleBusinessForm() {
+  toggleBusinessForm(forceOpen = null) {
     const formSection = document.getElementById('business-form-section');
     if (formSection) {
-      formSection.style.display = formSection.style.display === 'none' ? 'block' : 'none';
+      const isHidden = formSection.style.display === 'none';
+      const shouldOpen = forceOpen === null ? isHidden : forceOpen;
+      formSection.style.display = shouldOpen ? 'block' : 'none';
+      this.setHeaderNavActive(shouldOpen ? 'business-btn' : null);
+      this.setHash(shouldOpen ? '/montana/business' : '/montana');
     }
   }
 
-  toggleDiscussionBoard() {
+  toggleDiscussionBoard(forceOpen = null) {
     const mapSection = document.getElementById('map-section');
     const discussionSection = document.getElementById('discussion-section');
     
     if (discussionSection) {
+      const isHidden = discussionSection.style.display === 'none';
+      const shouldOpen = forceOpen === null ? isHidden : forceOpen;
+
       // Hide map, show discussion
-      if (discussionSection.style.display === 'none') {
+      if (shouldOpen) {
         discussionSection.style.display = 'block';
         if (mapSection) mapSection.style.display = 'none';
+        this.setHeaderNavActive('discussion-btn');
+        this.setHash('/montana/discussion');
         this.initializeDiscussionBoard();
       } else {
         discussionSection.style.display = 'none';
         if (mapSection) mapSection.style.display = 'block';
+        this.setHeaderNavActive();
+        this.setHash('/montana');
       }
     }
   }
@@ -1387,6 +1491,7 @@ class MTApp {
     if (infoSection) infoSection.style.display = 'none';
     if (directory) directory.style.display = 'none';
     if (cityModal) cityModal.style.display = 'none';
+    this.setHeaderNavActive();
   }
 
   closeCityModal() {
@@ -1489,7 +1594,29 @@ class MTApp {
     this.currentCounty = null;
     this.currentCity = null;
     this.setBreadcrumb({});
+    this.setHeaderNavActive('directory-btn');
     this.setHash('/montana');
+  }
+
+  setHeaderNavActive(activeButtonId = null) {
+    const ids = [
+      'directory-btn',
+      'business-btn',
+      'marketplace-nav-btn',
+      'discussion-btn',
+      'events-nav-btn',
+      'awards-btn'
+    ];
+
+    ids.forEach(id => {
+      const button = document.getElementById(id);
+      if (button) button.classList.remove('active');
+    });
+
+    if (activeButtonId) {
+      const activeButton = document.getElementById(activeButtonId);
+      if (activeButton) activeButton.classList.add('active');
+    }
   }
 
   refresh() {
@@ -1531,6 +1658,14 @@ class MTApp {
       const county = document.getElementById('biz-county').value;
       const city = document.getElementById('biz-city').value;
       const address = document.getElementById('biz-address').value;
+      const selectedPlan = document.querySelector('input[name="biz-plan"]:checked')?.value || 'free';
+      const billingStatus = document.getElementById('biz-billing-status')?.value || 'active';
+      const planConfig = {
+        free: { label: 'Free', monthlyPrice: 0, featured: false },
+        pro: { label: 'Pro', monthlyPrice: 29, featured: true },
+        premium: { label: 'Premium', monthlyPrice: 79, featured: true }
+      };
+      const plan = planConfig[selectedPlan] || planConfig.free;
       
       if (!county || !city) {
         throw new Error('Please select both county and city');
@@ -1569,6 +1704,11 @@ class MTApp {
         phone: document.getElementById('biz-phone').value,
         website: document.getElementById('biz-website').value,
         icon: document.getElementById('biz-icon').value || '🏪',
+        plan: selectedPlan,
+        planLabel: plan.label,
+        monthlyPrice: plan.monthlyPrice,
+        featured: plan.featured,
+        billingStatus,
         lat: geocodeResult.lat,
         lng: geocodeResult.lng,
         active: true,
@@ -1581,10 +1721,12 @@ class MTApp {
       this.addBusinessMarkers();
       this.renderBusinessList();
       
-      alert(`✅ ${business.name} added successfully!\n📍 ${city}, ${geocodeResult.formatted}\n💳 Subscription activated. Expires: ${new Date(business.expires).toLocaleDateString()}`);
+      alert(`✅ ${business.name} added successfully!\n📍 ${city}, ${geocodeResult.formatted}\n💳 Plan: ${business.planLabel}${business.monthlyPrice ? ` ($${business.monthlyPrice}/mo)` : ' ($0/mo)'}\n🔄 Next renewal: ${new Date(business.expires).toLocaleDateString()}`);
       
       document.getElementById('business-form').reset();
       document.getElementById('biz-city').innerHTML = '<option value="">Select County First...</option>';
+      const billingSelect = document.getElementById('biz-billing-status');
+      if (billingSelect) billingSelect.value = 'active';
       document.getElementById('business-form-section').style.display = 'none';
       
     } catch (error) {
@@ -1598,30 +1740,94 @@ class MTApp {
   renderBusinessList() {
     const businessList = document.getElementById('business-list');
     if (!businessList) return;
-    
-    const activeBusinesses = BUSINESSES.filter(b => b.active);
-    
-    if (activeBusinesses.length === 0) {
+
+    const isAdmin = ADMIN_CONFIG.isLoggedIn;
+    const visibleBusinesses = BUSINESSES
+      .filter(b => isAdmin ? true : (b.active && (b.billingStatus || 'active') !== 'canceled'))
+      .sort((a, b) => (b.featured === true) - (a.featured === true));
+
+    if (visibleBusinesses.length === 0) {
       businessList.innerHTML = '<p class="empty-state">No businesses listed yet</p>';
       return;
     }
-    
-    businessList.innerHTML = activeBusinesses.map(business => `
+
+    const statusLabel = (status) => ({ active: 'Active', past_due: 'Past Due', canceled: 'Canceled' }[status] || 'Active');
+    const statusColor = (status) => ({ active: 'var(--mt-success)', past_due: 'var(--mt-warning)', canceled: 'var(--mt-danger)' }[status] || 'var(--mt-success)');
+
+    businessList.innerHTML = visibleBusinesses.map(business => {
+      const currentStatus = business.billingStatus || 'active';
+      return `
       <div style="padding: 0.75rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--parchment-dark);">
-        <strong>${business.icon} ${business.name}</strong><br>
+        <strong>${business.icon} ${business.name}</strong>
+        ${business.featured ? '<span style="margin-left:8px;font-size:0.75rem;padding:2px 8px;border-radius:999px;background:var(--mt-gold-light);color:var(--mt-slate-900);">Featured</span>' : ''}<br>
         <small style="color: var(--ink-light);">${business.address}</small>
+        <br><small style="color: var(--ink-light);">Plan: ${business.planLabel || 'Free'}${business.monthlyPrice ? ` • $${business.monthlyPrice}/mo` : ' • $0/mo'}</small>
+        <br><small style="color: ${statusColor(currentStatus)};">Billing: ${statusLabel(currentStatus)}</small>
         ${business.phone ? `<br><small>📞 ${business.phone}</small>` : ''}
+        ${isAdmin ? `<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="nav-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="mtApp.updateBusinessBillingStatus('${business.id}','active')">Set Active</button>
+          <button class="nav-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="mtApp.updateBusinessBillingStatus('${business.id}','past_due')">Set Past Due</button>
+          <button class="nav-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="mtApp.updateBusinessBillingStatus('${business.id}','canceled')">Set Canceled</button>
+        </div>` : ''}
       </div>
-    `).join('');
+    `;
+    }).join('');
+  }
+
+  updateBusinessBillingStatus(businessId, status) {
+    const business = BUSINESSES.find(item => item.id === businessId);
+    if (!business) return;
+
+    business.billingStatus = status;
+    business.active = status !== 'canceled';
+
+    localStorage.setItem('mtBusinesses', JSON.stringify(BUSINESSES));
+    this.addBusinessMarkers();
+    this.renderBusinessList();
+    this.showNotification(`Billing status updated to ${status.replace('_', ' ')}.`, 'success');
   }
 
   // ===== ADMIN PANEL METHODS =====
+
+  setAdminMapSplitMode(enabled) {
+    document.body.classList.toggle('admin-map-split', enabled);
+  }
+
+  showAdminMapSplitView() {
+    const adminSection = document.getElementById('admin-section');
+    const mapSection = document.getElementById('map-section');
+    const sectionsToHide = [
+      'business-form-section',
+      'county-page',
+      'city-page',
+      'directory-section',
+      'info-section',
+      'discussion-section',
+      'events-section',
+      'awards-page-section',
+      'marketplace-section'
+    ];
+
+    sectionsToHide.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    if (adminSection) adminSection.style.display = 'block';
+    if (mapSection) mapSection.style.display = 'block';
+    this.setAdminMapSplitMode(true);
+
+    if (this.map) {
+      setTimeout(() => this.map.invalidateSize(), 80);
+    }
+  }
   
   toggleAdminPanel() {
     const adminSection = document.getElementById('admin-section');
     const otherSections = ['business-form-section', 'map-section', 'county-page', 'city-page', 'directory-section'];
     
     if (adminSection.style.display === 'none') {
+      this.setAdminMapSplitMode(false);
       adminSection.style.display = 'block';
       otherSections.forEach(id => {
         const el = document.getElementById(id);
@@ -1638,6 +1844,7 @@ class MTApp {
         document.getElementById('admin-dashboard').style.display = 'none';
       }
     } else {
+      this.setAdminMapSplitMode(false);
       adminSection.style.display = 'none';
       const mapSection = document.querySelector('.map-section');
       if (mapSection) mapSection.style.display = 'block';
@@ -1686,6 +1893,7 @@ class MTApp {
   async handleAdminLogout() {
     ADMIN_CONFIG.isLoggedIn = false;
     if (this.ds) await this.ds.logout();
+    this.setAdminMapSplitMode(false);
     document.getElementById('admin-dashboard').style.display = 'none';
     document.getElementById('admin-login').style.display = 'block';
     document.getElementById('admin-section').style.display = 'none';
@@ -1737,33 +1945,82 @@ class MTApp {
       name,
       data: COUNTY_DATA[fips] || null
     }));
+
+    this.allCounties.sort((a, b) => a.name.localeCompare(b.name));
     
     this.renderCountyList(this.allCounties);
   }
 
   renderCountyList(counties) {
     const countyList = document.getElementById('county-list');
+    const summaryEl = document.getElementById('county-list-summary');
     if (!countyList) return;
+
+    const safeCounties = [...counties].sort((a, b) => {
+      const aHasData = !!(a.data && Object.keys(a.data).length > 0);
+      const bHasData = !!(b.data && Object.keys(b.data).length > 0);
+      if (aHasData !== bHasData) return aHasData ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    const customizedCount = safeCounties.filter(c => c.data && Object.keys(c.data).length > 0).length;
+    if (summaryEl) {
+      summaryEl.textContent = `${safeCounties.length} counties • ${customizedCount} customized • ${safeCounties.length - customizedCount} default`;
+    }
     
-    if (counties.length === 0) {
+    if (safeCounties.length === 0) {
       countyList.innerHTML = '<p class="empty-state">No counties found</p>';
       return;
     }
     
-    countyList.innerHTML = counties.map(county => {
+    countyList.innerHTML = safeCounties.map(county => {
       const hasData = county.data && Object.keys(county.data).length > 0;
+      const countyData = county.data || {};
+      const safeCountyName = county.name.replace(/'/g, "\\'");
+      const completionFields = [
+        countyData.description,
+        countyData.population,
+        countyData.seat,
+        countyData.established,
+        countyData.area,
+        countyData.website,
+        countyData.poi,
+        countyData.heroImage
+      ];
+      const filled = completionFields.filter(value => value && String(value).trim()).length;
+      const completionPct = Math.round((filled / completionFields.length) * 100);
+
+      const previewPieces = [countyData.seat ? `Seat: ${countyData.seat}` : null, countyData.population ? `Pop: ${countyData.population}` : null]
+        .filter(Boolean)
+        .join(' • ');
+
       return `
-        <div class="county-item" data-fips="${county.fips}">
-          <div class="county-item-info">
-            <h4>${county.name}</h4>
-            <p>FIPS: ${county.fips}</p>
+        <div class="county-admin-row" data-fips="${county.fips}">
+          <div class="county-admin-main">
+            <div class="county-admin-title-row">
+              <h4>${county.name}</h4>
+              <span class="status-badge ${hasData ? 'has-data' : 'no-data'}">
+                ${hasData ? 'Customized' : 'Default'}
+              </span>
+            </div>
+            <p class="county-admin-meta">FIPS ${county.fips}${previewPieces ? ` • ${this.escapeHtml(previewPieces)}` : ''}</p>
+            <div class="county-admin-completion">
+              <div class="county-admin-completion-head">
+                <span>Content completion</span>
+                <span>${completionPct}% (${filled}/${completionFields.length} fields)</span>
+              </div>
+              <div class="county-admin-meter"><span style="width:${completionPct}%"></span></div>
+            </div>
           </div>
-          <div class="county-item-status">
-            <span class="status-badge ${hasData ? 'has-data' : 'no-data'}">
-              ${hasData ? '✓ Customized' : 'Default'}
-            </span>
-            <button class="edit-btn" onclick="app.openCountyEditor('${county.fips}', '${county.name}')">
-              Edit
+          <div class="county-admin-actions">
+            <button class="nav-btn county-quick-btn" onclick="window.mtApp.openCountyPage('${county.fips}', '${safeCountyName}')">
+              View County Page
+            </button>
+            <button class="nav-btn county-quick-btn" onclick="window.mtApp.openCountyInMap('${county.fips}', '${safeCountyName}')">
+              Open in Map
+            </button>
+            <button class="submit-btn county-edit-btn" onclick="window.mtApp.openCountyEditor('${county.fips}', '${safeCountyName}')">
+              Edit County
             </button>
           </div>
         </div>
@@ -1918,7 +2175,7 @@ class MTApp {
     // Fetch views (Firestore if available, else localStorage)
     let views = window.ANALYTICS_VIEWS || [];
     if (this.ds && typeof this.ds.getAnalyticsViews === 'function') {
-      try { views = await this.ds.getAnalyticsViews(); } catch (e) {}
+      try { views = await this.ds.getAnalyticsViews(); } catch (_e) { void _e; }
     }
 
     const now = Date.now();
@@ -1926,8 +2183,6 @@ class MTApp {
     const todayViews = views.filter(v => now - v.ts < dayMs);
     const countyViews = views.filter(v => v.type === 'county');
     const cityViews   = views.filter(v => v.type === 'city');
-    const evtViews    = views.filter(v => v.type === 'event');
-    const discViews   = views.filter(v => v.type === 'discussion');
 
     // Summary cards
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -1957,7 +2212,7 @@ class MTApp {
       const top = rows.slice(0, maxRows);
       if (top.length === 0) { el.innerHTML = '<p class="empty-state">No data yet.</p>'; return; }
       const maxCount = top[0].count;
-      el.innerHTML = top.map((r, i) => `
+      el.innerHTML = top.map((r) => `
         <div class="analytics-bar-row">
           <div class="analytics-bar-label" title="${r.name}">${r.name}</div>
           <div class="analytics-bar-track">
@@ -2025,6 +2280,72 @@ class MTApp {
         }).join('');
       }
     }
+
+    // Billing dashboard
+    const businesses = (window.BUSINESSES || []).slice();
+    const activeBusinesses = businesses.filter((business) => (business.billingStatus || 'active') === 'active');
+    const pastDueBusinesses = businesses.filter((business) => business.billingStatus === 'past_due');
+    const canceledBusinesses = businesses.filter((business) => business.billingStatus === 'canceled');
+    const estimatedMrr = activeBusinesses.reduce((sum, business) => sum + Number(business.monthlyPrice || 0), 0);
+
+    set('bill-total-businesses', businesses.length.toLocaleString());
+    set('bill-active', activeBusinesses.length.toLocaleString());
+    set('bill-past-due', pastDueBusinesses.length.toLocaleString());
+    set('bill-canceled', canceledBusinesses.length.toLocaleString());
+    set('bill-mrr', `$${estimatedMrr.toLocaleString()}`);
+
+    const breakdownEl = document.getElementById('billing-breakdown');
+    if (breakdownEl) {
+      const plans = [
+        { key: 'free', label: 'Free' },
+        { key: 'pro', label: 'Pro' },
+        { key: 'premium', label: 'Premium' }
+      ];
+
+      const rows = plans.map((plan) => {
+        const planBusinesses = businesses.filter((business) => (business.plan || 'free') === plan.key);
+        const planActive = planBusinesses.filter((business) => (business.billingStatus || 'active') === 'active');
+        const planPastDue = planBusinesses.filter((business) => business.billingStatus === 'past_due');
+        const planCanceled = planBusinesses.filter((business) => business.billingStatus === 'canceled');
+        const planMrr = planActive.reduce((sum, business) => sum + Number(business.monthlyPrice || 0), 0);
+
+        return {
+          label: plan.label,
+          total: planBusinesses.length,
+          active: planActive.length,
+          pastDue: planPastDue.length,
+          canceled: planCanceled.length,
+          mrr: planMrr
+        };
+      });
+
+      breakdownEl.innerHTML = `
+        <table class="analytics-table">
+          <thead>
+            <tr>
+              <th>Plan</th>
+              <th>Total</th>
+              <th>Active</th>
+              <th>Past Due</th>
+              <th>Canceled</th>
+              <th>MRR</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td>${row.label}</td>
+                <td>${row.total}</td>
+                <td>${row.active}</td>
+                <td>${row.pastDue}</td>
+                <td>${row.canceled}</td>
+                <td>$${row.mrr.toLocaleString()}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
   }
 
   buildCountySlugMap() {
@@ -2088,6 +2409,7 @@ class MTApp {
   }
 
   showCountyPage() {
+    this.setAdminMapSplitMode(false);
     const countyPage = document.getElementById('county-page');
     const mapSection = document.getElementById('map-section');
     const infoSection = document.getElementById('info-section');
@@ -2099,9 +2421,11 @@ class MTApp {
     if (infoSection) infoSection.style.display = 'none';
     if (cityPage) cityPage.style.display = 'none';
     if (directory) directory.style.display = 'none';
+    this.setHeaderNavActive();
   }
 
   showMapView() {
+    this.setAdminMapSplitMode(false);
     const countyPage = document.getElementById('county-page');
     const mapSection = document.getElementById('map-section');
     const cityPage = document.getElementById('city-page');
@@ -2119,6 +2443,7 @@ class MTApp {
     this.currentCounty = null;
     this.currentCity = null;
     this.setBreadcrumb({});
+    this.setHeaderNavActive();
     this.setHash('/montana');
   }
 
@@ -2207,6 +2532,37 @@ class MTApp {
     this.trackPageView('county', fipsCode, countyName);
   }
 
+  openCountyInMap(fipsCode, countyName) {
+    this.showAdminMapSplitView();
+
+    if (!this.countyLayer) return;
+
+    let targetLayer = null;
+    this.countyLayer.eachLayer(layer => {
+      if (targetLayer) return;
+      const feature = layer.feature || {};
+      const props = feature.properties || {};
+      const featureFips = props.GEOID || props.COUNTYFP || props.FIPS || props.fips;
+      if (String(featureFips) === String(fipsCode)) {
+        targetLayer = layer;
+      }
+    });
+
+    if (!targetLayer) {
+      this.showNotification(`Could not find ${countyName} on the current map layer.`, 'error');
+      return;
+    }
+
+    if (targetLayer.getBounds) {
+      this.map.fitBounds(targetLayer.getBounds(), { padding: [20, 20] });
+    }
+    if (targetLayer.openPopup) {
+      setTimeout(() => targetLayer.openPopup(), 150);
+    }
+
+    this.updateHUD(`Focused map on ${countyName}.`, countyName);
+  }
+
   handleRouteFromHash() {
     if (this.isUpdatingHash) return;
 
@@ -2221,6 +2577,26 @@ class MTApp {
 
     if (segments.length === 1) {
       this.showMapView();
+      return;
+    }
+
+    if (segments.length === 2 && segments[1] === 'marketplace') {
+      this.showMarketplace();
+      return;
+    }
+
+    if (segments.length === 2 && segments[1] === 'events') {
+      this.showEventsPage();
+      return;
+    }
+
+    if (segments.length === 2 && segments[1] === 'discussion') {
+      this.toggleDiscussionBoard(true);
+      return;
+    }
+
+    if (segments.length === 2 && segments[1] === 'business') {
+      this.toggleBusinessForm(true);
       return;
     }
 
@@ -2564,14 +2940,124 @@ class MTApp {
       'ghost-towns': {
         name: 'Historic Ghost Towns',
         features: [
-          { name: 'Bannack', lat: 45.1617, lng: -112.9994 },
-          { name: 'Virginia City', lat: 45.2938, lng: -111.9428 },
-          { name: 'Garnet', lat: 46.8833, lng: -113.3667 },
-          { name: 'Coolidge', lat: 45.8833, lng: -109.7167 },
-          { name: 'Granite', lat: 46.5667, lng: -113.3833 }
+          {
+            name: 'Bannack',
+            lat: 45.1617,
+            lng: -112.9994,
+            preservationMeter: 92,
+            status: 'Fully Preserved',
+            accessibility: 'Open seasonally via paved + short gravel access',
+            teachersNote: 'Bannack held over 3,000 residents in its boom years, but fewer than a dozen stayed year-round by 1950.'
+          },
+          {
+            name: 'Virginia City',
+            lat: 45.2938,
+            lng: -111.9428,
+            preservationMeter: 88,
+            status: 'Living Ghost Town',
+            accessibility: 'Open year-round; museums and boardwalk tours in peak season',
+            teachersNote: 'Virginia City survived partly because tourism became its second economy after hard-rock mining faded.'
+          },
+          {
+            name: 'Garnet',
+            lat: 46.8833,
+            lng: -113.3667,
+            preservationMeter: 67,
+            status: 'Substantial Structures Remain',
+            accessibility: 'Best access late spring through fall; winter routes limited',
+            teachersNote: 'Many cabins at Garnet were re-used by families into the 1930s, well after the classic “rush” narrative ended.'
+          },
+          {
+            name: 'Coolidge',
+            lat: 45.8833,
+            lng: -109.7167,
+            preservationMeter: 34,
+            status: 'Mostly Foundations',
+            accessibility: 'Backcountry access; high-clearance recommended',
+            teachersNote: 'Coolidge was a company town tied to one mining system—when financing vanished, the community collapsed quickly.'
+          },
+          {
+            name: 'Kendall',
+            lat: 47.2702,
+            lng: -109.7154,
+            preservationMeter: 24,
+            status: 'Mostly Foundations',
+            accessibility: 'Public roads nearby; on-site remains are fragile',
+            teachersNote: 'Kendall had electric lights early for a frontier camp, but cyanide-based extraction also left a complex environmental legacy.'
+          },
+          {
+            name: 'Granite',
+            lat: 46.5667,
+            lng: -113.3833,
+            preservationMeter: 46,
+            status: 'Partial Ruins',
+            accessibility: 'Summer/fall access only; steep mountain roads',
+            teachersNote: 'Granite’s hilltop location made ore transport expensive—profitability hinged as much on freight cost as metal price.'
+          }
         ],
         color: '#A9A9A9',
-        fact: 'Bannack was Montana\'s first territorial capital in 1864, now a well-preserved ghost town with over 50 structures!'
+        fact: 'Bannack was Montana\'s first territorial capital in 1864, and ghost town preservation levels still change with weather, access, and restoration work.',
+        popupBuilder: (feature) => {
+          const meter = Math.max(0, Math.min(100, Number(feature.preservationMeter) || 0));
+          return `
+            <div class="layer-popup ghost-popup">
+              <strong>${this.escapeHtml(feature.name)}</strong>
+              <div class="ghost-popup-status">Status: ${this.escapeHtml(feature.status || 'Unknown')}</div>
+              <div class="ghost-popup-access">Access: ${this.escapeHtml(feature.accessibility || 'Varies by season')}</div>
+              <div class="ghost-popup-meter"><span style="width:${meter}%"></span></div>
+              <p class="ghost-popup-note">📘 Teacher’s Note: ${this.escapeHtml(feature.teachersNote || '')}</p>
+            </div>
+          `;
+        }
+      },
+      'copper-king-era': {
+        name: 'Layer A: Copper King Era (Mines & Mansions)',
+        features: [
+          { name: 'Butte Mining District', lat: 46.0038, lng: -112.5348, note: 'Once called “the richest hill on Earth,” Butte linked geology to global industrial power.' },
+          { name: 'Anselmo Mine Yard', lat: 46.0068, lng: -112.5179, note: 'Headframes became symbols of industrial identity and labor organizing in Montana.' },
+          { name: 'Copper King Mansion (Butte)', lat: 46.0108, lng: -112.5387, note: 'Lavish mansions reflected Gilded Age wealth concentration from extractive industries.' },
+          { name: 'Original Governor\'s Mansion (Helena)', lat: 46.5892, lng: -112.0318, note: 'Political influence and mining money often moved through the same social networks.' }
+        ],
+        color: '#B45309',
+        fact: 'The Copper King era transformed Montana from frontier camps into globally connected industrial centers.',
+        popupBuilder: (feature) => `<strong>${this.escapeHtml(feature.name)}</strong><br><em>Layer A: Copper King Era</em><br>${this.escapeHtml(feature.note || '')}`
+      },
+      'indigenous-heritage': {
+        name: 'Layer B: Indigenous Heritage & Tribal Lands',
+        features: [
+          { name: 'Blackfeet Nation', lat: 48.5, lng: -113.0, radius: 50000, note: 'Keep in mind these are educational reference areas, not legal boundary maps.' },
+          { name: 'Crow Nation', lat: 45.5, lng: -107.5, radius: 40000, note: 'Oral history and language revitalization are central to living heritage today.' },
+          { name: 'Salish & Kootenai (CSKT)', lat: 47.5, lng: -114.0, radius: 35000, note: 'Treaty history and stewardship practices continue shaping policy and education.' },
+          { name: 'Northern Cheyenne', lat: 45.6, lng: -106.5, radius: 30000, note: 'Community-led education work documents both resistance and cultural continuity.' },
+          { name: 'Fort Peck (Assiniboine & Sioux)', lat: 48.2, lng: -105.5, radius: 35000, note: 'Regional history includes both displacement and modern sovereignty efforts.' }
+        ],
+        color: '#92400E',
+        fact: 'Montana\'s Indigenous history is living history—rooted in language, land, and sovereign communities.',
+        popupBuilder: (feature) => `<strong>${this.escapeHtml(feature.name)}</strong><br><em>Layer B: Indigenous Heritage</em><br>${this.escapeHtml(feature.note || '')}`
+      },
+      'film-locations': {
+        name: 'Layer C: Modern Film Locations',
+        features: [
+          { name: 'Chief Joseph Ranch (Yellowstone series)', lat: 45.1168, lng: -113.9968, note: 'Filming can reshape local tourism economics and community identity.' },
+          { name: 'Missoula Valley (A River Runs Through It)', lat: 46.8721, lng: -113.9940, note: 'Film narratives often blend multiple real locations into one on-screen place.' },
+          { name: 'Paradise Valley (Yellowstone scenes)', lat: 45.6486, lng: -110.5609, note: 'Landscape cinematography helped brand Montana internationally as “Big Sky Country.”' },
+          { name: 'Glacier Region (The Revenant area shoots)', lat: 48.6967, lng: -113.7183, note: 'Production logistics in remote terrain mirror many historical travel constraints.' }
+        ],
+        color: '#2563EB',
+        fact: 'Montana\'s landscapes keep drawing film and TV productions, connecting place-based history with modern media.',
+        popupBuilder: (feature) => `<strong>${this.escapeHtml(feature.name)}</strong><br><em>Layer C: Film Locations</em><br>${this.escapeHtml(feature.note || '')}`
+      },
+      'wildlife-hotspots': {
+        name: 'Layer D: Wildlife Hotspots',
+        features: [
+          { name: 'Freezeout Lake WMA (Snow Goose Migration)', lat: 47.8044, lng: -111.6386, note: 'Peak migration windows can bring tens of thousands of birds in concentrated pulses.' },
+          { name: 'National Bison Range', lat: 47.80, lng: -114.17, note: 'A key site for understanding conservation history and species recovery debates.' },
+          { name: 'Charles M. Russell NWR', lat: 47.8828, lng: -107.8472, radius: 70000, note: 'Large habitat mosaics matter more for many species than any single protected parcel.' },
+          { name: 'Red Rock Lakes NWR', lat: 44.6118, lng: -111.9434, note: 'High-elevation wetlands are critical stopovers for migratory birds.' }
+        ],
+        color: '#059669',
+        fact: 'Wildlife hotspots reveal how migration, water, and land management intersect across Montana.',
+        popupBuilder: (feature) => `<strong>${this.escapeHtml(feature.name)}</strong><br><em>Layer D: Wildlife Hotspots</em><br>${this.escapeHtml(feature.note || '')}`
       },
       mines: {
         name: 'Active Mines',
@@ -2825,13 +3311,16 @@ class MTApp {
       // Also show fallback trailhead markers at low zoom
       if (layerInfo.features && layerInfo.features.length) {
         layerInfo.features.forEach(feature => {
+          const popupContent = layerInfo.popupBuilder
+            ? layerInfo.popupBuilder(feature)
+            : `<strong>${feature.name}</strong><br><em>${layerInfo.name}</em>`;
           L.circleMarker([feature.lat, feature.lng], {
             color: layerInfo.color,
             fillColor: layerInfo.color,
             fillOpacity: 0.85,
             radius: 7,
             weight: 2
-          }).bindPopup(`<strong>${feature.name}</strong><br><em>${layerInfo.name}</em>`).addTo(layerGroup);
+          }).bindPopup(popupContent).addTo(layerGroup);
         });
       }
       layerGroup.addTo(this.map);
@@ -2841,6 +3330,10 @@ class MTApp {
     }
 
     layerInfo.features.forEach(feature => {
+      const popupContent = layerInfo.popupBuilder
+        ? layerInfo.popupBuilder(feature)
+        : `<strong>${feature.name}</strong><br>${layerInfo.name}`;
+
       if (feature.radius) {
         // Create circle for area features
         const circle = L.circle([feature.lat, feature.lng], {
@@ -2849,7 +3342,7 @@ class MTApp {
           fillOpacity: 0.2,
           radius: feature.radius,
           weight: 2
-        }).bindPopup(`<strong>${feature.name}</strong><br>${layerInfo.name}`);
+        }).bindPopup(popupContent);
         
         circle.addTo(layerGroup);
       } else {
@@ -2860,7 +3353,7 @@ class MTApp {
           fillOpacity: 0.7,
           radius: 8,
           weight: 2
-        }).bindPopup(`<strong>${feature.name}</strong><br>${layerInfo.name}`);
+        }).bindPopup(popupContent);
         
         marker.addTo(layerGroup);
       }
@@ -2995,6 +3488,369 @@ class MTApp {
     }
   }
 
+  initializeBigSkyDashboard() {
+    const refreshBtn = document.getElementById('big-sky-refresh-btn');
+    const legendBtn = document.getElementById('big-sky-legend-btn');
+    const legendTooltip = document.getElementById('big-sky-legend-tooltip');
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => this.refreshBigSkyDashboard(true));
+    }
+
+    if (legendBtn && legendTooltip) {
+      legendBtn.addEventListener('click', () => {
+        legendTooltip.classList.toggle('visible');
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!legendTooltip.classList.contains('visible')) return;
+        if (event.target.closest('#big-sky-legend-btn') || event.target.closest('#big-sky-legend-tooltip')) return;
+        legendTooltip.classList.remove('visible');
+      });
+    }
+
+    this.refreshBigSkyDashboard();
+
+    if (this._bigSkyRefreshTimer) clearInterval(this._bigSkyRefreshTimer);
+    this._bigSkyRefreshTimer = setInterval(() => {
+      this.refreshBigSkyDashboard();
+    }, 30 * 60 * 1000);
+  }
+
+  async refreshBigSkyDashboard(isManualRefresh = false) {
+    const refreshBtn = document.getElementById('big-sky-refresh-btn');
+    const updatedEl = document.getElementById('big-sky-updated');
+
+    if (refreshBtn && isManualRefresh) {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Refreshing...';
+    }
+
+    try {
+      const [snotelData, streamflowData] = await Promise.all([
+        this.fetchSnotelSnowpackData(),
+        this.fetchStreamflowData()
+      ]);
+
+      this.renderBigSkySnotel(snotelData);
+      this.renderBigSkyStreamflow(streamflowData);
+      this.updateBigSkyLegendMeta(snotelData, streamflowData);
+
+      const fact = this.getHistoryFactOfTheDay();
+      const factEl = document.getElementById('big-sky-fact');
+      if (factEl) {
+        factEl.innerHTML = `
+          <h4>📚 History Fact of the Day</h4>
+          <p><strong>${this.escapeHtml(fact.title)}</strong></p>
+          <p>${this.escapeHtml(fact.text)}</p>
+        `;
+      }
+
+      if (updatedEl) {
+        updatedEl.textContent = `Last refresh: ${new Date().toLocaleString()} (AWDB + USGS)`;
+      }
+    } catch (error) {
+      console.error('Big Sky dashboard refresh failed:', error);
+      if (updatedEl) {
+        updatedEl.textContent = 'Last refresh failed. Showing latest available values.';
+      }
+    } finally {
+      if (refreshBtn) {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = 'Refresh';
+      }
+    }
+  }
+
+  async fetchSnotelSnowpackData() {
+    const stations = [
+      { triplet: '924:MT:SNTL', label: 'West Yellowstone' },
+      { triplet: '876:MT:SNTL', label: 'Wood Creek' },
+      { triplet: '862:MT:SNTL', label: 'White Mill' },
+      { triplet: '858:MT:SNTL', label: 'Whiskey Creek' }
+    ];
+
+    const endDate = new Date();
+    const beginDate = new Date(endDate);
+    beginDate.setDate(endDate.getDate() - 14);
+
+    const toIsoDate = (date) => date.toISOString().slice(0, 10);
+    const params = new URLSearchParams({
+      stationTriplets: stations.map(station => station.triplet).join(','),
+      elements: 'WTEQ',
+      duration: 'DAILY',
+      beginDate: toIsoDate(beginDate),
+      endDate: toIsoDate(endDate)
+    });
+
+    const url = `https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1/data?${params.toString()}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`SNOTEL request failed (${response.status})`);
+
+    const payload = await response.json();
+    const byTriplet = new Map(payload.map(row => [row.stationTriplet, row]));
+
+    return stations.map(station => {
+      const row = byTriplet.get(station.triplet);
+      const series = row?.data?.find(item => item.stationElement?.elementCode === 'WTEQ')?.values || [];
+      const valid = series.filter(point => typeof point.value === 'number');
+      const latest = valid.length ? valid[valid.length - 1] : null;
+      const prior = valid.length > 7 ? valid[valid.length - 8] : null;
+      const trend = latest && prior ? latest.value - prior.value : null;
+
+      return {
+        station: station.label,
+        sweInches: latest?.value ?? null,
+        trendInches7d: trend,
+        observedDate: latest?.date || null
+      };
+    });
+  }
+
+  renderBigSkySnotel(snotelData) {
+    const container = document.getElementById('big-sky-snotel');
+    if (!container) return;
+
+    if (!snotelData || snotelData.length === 0) {
+      container.innerHTML = '<p class="empty-state">No SNOTEL data available.</p>';
+      return;
+    }
+
+    container.innerHTML = snotelData.map(item => {
+      if (item.sweInches === null) {
+        return `
+          <div class="big-sky-row">
+            <div class="big-sky-row-title">${this.escapeHtml(item.station)}</div>
+            <div class="big-sky-row-meta">No recent SWE reading available</div>
+          </div>
+        `;
+      }
+
+      const meterPct = Math.max(5, Math.min(100, Math.round((item.sweInches / 20) * 100)));
+      const trendText = item.trendInches7d === null
+        ? '7d trend unavailable'
+        : `${item.trendInches7d >= 0 ? '+' : ''}${item.trendInches7d.toFixed(1)} in (7d)`;
+
+      return `
+        <div class="big-sky-row">
+          <div class="big-sky-row-title">${this.escapeHtml(item.station)} <span>${item.sweInches.toFixed(1)} in SWE</span></div>
+          <div class="big-sky-meter"><span style="width:${meterPct}%"></span></div>
+          <div class="big-sky-row-meta">${this.escapeHtml(trendText)} • Observed ${this.escapeHtml(item.observedDate || 'n/a')}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async fetchStreamflowData() {
+    const sites = [
+      { id: '06054500', label: 'Missouri at Toston', low: 1500, high: 8000 },
+      { id: '06192500', label: 'Yellowstone at Livingston', low: 1000, high: 7000 },
+      { id: '06214500', label: 'Yellowstone at Billings', low: 1800, high: 12000 },
+      { id: '12340500', label: 'Clark Fork above Missoula', low: 900, high: 9000 }
+    ];
+
+    const params = new URLSearchParams({
+      format: 'json',
+      sites: sites.map(site => site.id).join(','),
+      parameterCd: '00060',
+      siteStatus: 'all'
+    });
+
+    const url = `https://waterservices.usgs.gov/nwis/iv/?${params.toString()}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Streamflow request failed (${response.status})`);
+
+    const payload = await response.json();
+    const series = payload?.value?.timeSeries || [];
+    const bySite = new Map();
+
+    series.forEach(entry => {
+      const siteId = entry?.sourceInfo?.siteCode?.[0]?.value;
+      if (siteId) bySite.set(siteId, entry);
+    });
+
+    return sites.map(site => {
+      const entry = bySite.get(site.id);
+      const values = entry?.values?.[0]?.value || [];
+      const latest = values.length ? values[values.length - 1] : null;
+      const prior = values.length > 1 ? values[values.length - 2] : null;
+      const cfs = latest ? Number(latest.value) : null;
+      const trend = latest && prior ? Number(latest.value) - Number(prior.value) : null;
+
+      let status = 'Unavailable';
+      if (cfs !== null && !Number.isNaN(cfs)) {
+        if (cfs < site.low) status = 'Low';
+        else if (cfs > site.high) status = 'High';
+        else status = 'Normal';
+      }
+
+      return {
+        site: site.label,
+        cfs: Number.isNaN(cfs) ? null : cfs,
+        trend,
+        status,
+        observedAt: latest?.dateTime || null
+      };
+    });
+  }
+
+  renderBigSkyStreamflow(streamflowData) {
+    const container = document.getElementById('big-sky-streamflow');
+    if (!container) return;
+
+    if (!streamflowData || streamflowData.length === 0) {
+      container.innerHTML = '<p class="empty-state">No streamflow data available.</p>';
+      return;
+    }
+
+    container.innerHTML = streamflowData.map(item => {
+      if (item.cfs === null) {
+        return `
+          <div class="big-sky-row">
+            <div class="big-sky-row-title">${this.escapeHtml(item.site)}</div>
+            <div class="big-sky-row-meta">No recent discharge reading available</div>
+          </div>
+        `;
+      }
+
+      const trendText = item.trend === null
+        ? 'Trend unavailable'
+        : `${item.trend >= 0 ? '+' : ''}${Math.round(item.trend)} cfs vs prior reading`;
+
+      return `
+        <div class="big-sky-row">
+          <div class="big-sky-row-title">${this.escapeHtml(item.site)} <span>${Math.round(item.cfs).toLocaleString()} cfs</span></div>
+          <div class="big-sky-row-meta"><span class="flow-status flow-${item.status.toLowerCase()}">${this.escapeHtml(item.status)}</span> • ${this.escapeHtml(trendText)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  updateBigSkyLegendMeta(snotelData, streamflowData) {
+    const metaEl = document.getElementById('big-sky-legend-meta');
+    if (!metaEl) return;
+
+    const snotelTimes = (snotelData || []).map(item => item.observedDate).filter(Boolean);
+    const streamflowTimes = (streamflowData || []).map(item => item.observedAt).filter(Boolean);
+
+    const latestSnotel = snotelTimes.length
+      ? snotelTimes.sort((a, b) => new Date(b) - new Date(a))[0]
+      : null;
+    const latestStreamflow = streamflowTimes.length
+      ? streamflowTimes.sort((a, b) => new Date(b) - new Date(a))[0]
+      : null;
+
+    const snotelLabel = latestSnotel
+      ? new Date(latestSnotel).toLocaleString()
+      : 'n/a';
+    const streamflowLabel = latestStreamflow
+      ? new Date(latestStreamflow).toLocaleString()
+      : 'n/a';
+
+    metaEl.textContent = `Latest AWDB: ${snotelLabel} • Latest USGS: ${streamflowLabel}`;
+  }
+
+  getHistoryFactOfTheDay() {
+    const facts = [
+      {
+        title: 'Today\'s classroom lens: Mining camps became civic systems',
+        text: 'Many Montana boomtowns first built schools, newspapers, and courts to stabilize commerce before population settled permanently.'
+      },
+      {
+        title: 'Today\'s classroom lens: Railroads reshaped settlement patterns',
+        text: 'Communities with rail access often outlasted nearby camps, because freight and migration routes determined long-term viability.'
+      },
+      {
+        title: 'Today\'s classroom lens: Water rights drove local politics',
+        text: 'Across Montana, irrigation and river access shaped county-level decision making as much as party politics did.'
+      },
+      {
+        title: 'Today\'s classroom lens: Tribal resilience is ongoing history',
+        text: 'Montana history is not just frontier chronology—language recovery, governance, and land stewardship remain active today.'
+      },
+      {
+        title: 'Today\'s classroom lens: Fire and forestry are linked',
+        text: 'Historic logging patterns, drought cycles, and modern fuel loads all help explain why wildfire seasons vary across regions.'
+      },
+      {
+        title: 'Today\'s classroom lens: Tourism became a second economy',
+        text: 'Places that once relied on extraction often transitioned by interpreting local history, landscapes, and cultural heritage.'
+      }
+    ];
+
+    const today = new Date();
+    const yearStart = new Date(today.getFullYear(), 0, 0);
+    const dayIndex = Math.floor((today - yearStart) / 86400000);
+    return facts[dayIndex % facts.length];
+  }
+
+  initializeGhostTownTracker() {
+    this.renderGhostTownStatusTracker();
+
+    const list = document.getElementById('ghost-town-status-list');
+    if (!list || list.dataset.bound === 'true') return;
+
+    list.addEventListener('click', (event) => {
+      const zoomBtn = event.target.closest('.ghost-town-zoom-btn');
+      if (!zoomBtn) return;
+      const townName = zoomBtn.dataset.town;
+      if (townName) this.focusGhostTown(townName);
+    });
+
+    list.dataset.bound = 'true';
+  }
+
+  renderGhostTownStatusTracker() {
+    const list = document.getElementById('ghost-town-status-list');
+    const ghostLayer = this.layerData['ghost-towns'];
+    if (!list || !ghostLayer) return;
+
+    const towns = [...ghostLayer.features]
+      .sort((a, b) => (b.preservationMeter || 0) - (a.preservationMeter || 0));
+
+    if (!towns.length) {
+      list.innerHTML = '<p class="empty-state">No ghost town records available.</p>';
+      return;
+    }
+
+    list.innerHTML = towns.map(town => {
+      const meter = Math.max(0, Math.min(100, Number(town.preservationMeter) || 0));
+      const statusClass = town.status?.toLowerCase().includes('fully')
+        ? 'status-strong'
+        : town.status?.toLowerCase().includes('mostly foundations')
+          ? 'status-fragile'
+          : 'status-moderate';
+
+      return `
+        <div class="ghost-town-row">
+          <div class="ghost-town-row-title">
+            <strong>${this.escapeHtml(town.name)}</strong>
+            <span class="ghost-status-chip ${statusClass}">${this.escapeHtml(town.status || 'Unknown')}</span>
+          </div>
+          <div class="ghost-meter"><span style="width:${meter}%"></span></div>
+          <div class="ghost-town-row-meta">Preservation Meter: ${meter}% • ${this.escapeHtml(town.accessibility || 'Seasonal conditions vary')}</div>
+          <p class="ghost-town-teacher-note">📘 Teacher’s Note: ${this.escapeHtml(town.teachersNote || '')}</p>
+          <button class="nav-btn ghost-town-zoom-btn" data-town="${this.escapeHtml(town.name)}" type="button">Zoom to location</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  focusGhostTown(townName) {
+    const ghostLayerInfo = this.layerData['ghost-towns'];
+    const town = ghostLayerInfo?.features?.find(item => item.name === townName);
+    if (!town || !this.map) return;
+
+    if (!this.layers['ghost-towns']) {
+      this.addLayer('ghost-towns');
+      const checkbox = document.querySelector('.layer-checkbox[data-layer="ghost-towns"]');
+      if (checkbox) checkbox.checked = true;
+    }
+
+    this.map.setView([town.lat, town.lng], 10, { animate: true });
+    this.updateHUD(`${town.status} • ${town.accessibility}`, town.name);
+  }
+
   // ============================================
   // NOTIFICATION SYSTEM
   // ============================================
@@ -3020,7 +3876,6 @@ class MTApp {
   // ============================================
 
   async loadUserList() {
-    const userList = document.getElementById('user-list');
     const usersHeader = document.getElementById('users-header');
     const userHelpText = document.getElementById('user-help-text');
 
@@ -3140,6 +3995,8 @@ class MTApp {
       if (mapSection) mapSection.style.display = 'none';
       if (discussionSection) discussionSection.style.display = 'none';
       if (awardsSection) awardsSection.style.display = 'none';
+      this.setHeaderNavActive('events-nav-btn');
+      this.setHash('/montana/events');
       this._populateEventsCountyFilter();
       this.loadPublicEvents();
     }
@@ -3150,6 +4007,8 @@ class MTApp {
     const mapSection = document.getElementById('map-section');
     if (eventsSection) eventsSection.style.display = 'none';
     if (mapSection) mapSection.style.display = 'block';
+    this.setHeaderNavActive();
+    this.setHash('/montana');
   }
 
   _countyNameMap() {
@@ -3209,7 +4068,6 @@ class MTApp {
     try {
       const events = await this.ds.getAllEvents();
       // Sort: upcoming first, then by featured
-      const now = new Date();
       events.sort((a, b) => {
         if (a.featured && !b.featured) return -1;
         if (!a.featured && b.featured) return 1;
@@ -3966,6 +4824,7 @@ class MTApp {
 
     // Community Events page
     document.getElementById('events-nav-btn')?.addEventListener('click', () => this.showEventsPage());
+    document.getElementById('marketplace-nav-btn')?.addEventListener('click', () => this.showMarketplace());
     document.getElementById('events-close-btn')?.addEventListener('click', () => this.closeEventsPage());
     document.getElementById('events-add-btn')?.addEventListener('click', () => this.showUserAddEventModal());
     document.getElementById('user-event-modal-close')?.addEventListener('click', () => this.closeUserAddEventModal());
@@ -3980,6 +4839,17 @@ class MTApp {
     // Auth state listener
     if (this.ds && this.ds.onAuthChange) {
       this.ds.onAuthChange((user) => {
+        if (this.ds.isFirebase && this.ds.isFirebase()) {
+          if (user && (user.email || user.displayName)) {
+            localStorage.setItem('currentUser', JSON.stringify({
+              email: user.email || '',
+              displayName: user.displayName || user.email?.split('@')[0] || 'User',
+              uid: user.uid || ''
+            }));
+          } else {
+            localStorage.removeItem('currentUser');
+          }
+        }
         this.updateAuthUI(user);
       });
     }
@@ -4138,18 +5008,18 @@ class MTApp {
     const userNav = document.getElementById('user-nav');
 
     if (user && (user.email || user.displayName)) {
+      const resolvedDisplayName = user.displayName || user.email?.split('@')[0] || 'User';
       // Show user nav
       if (authNav) authNav.style.display = 'none';
       if (userNav) {
         userNav.style.display = 'flex';
-        const displayName = user.displayName || user.email?.split('@')[0] || 'User';
         const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
-        const member = Object.values(members).find(m => m.email === user.email || m.name === displayName);
+        const member = Object.values(members).find(m => m.email === user.email || m.name === resolvedDisplayName);
         const avatar = member?.avatarEmoji || '👤';
-        document.getElementById('user-display-name').textContent = displayName;
+        document.getElementById('user-display-name').textContent = resolvedDisplayName;
         document.getElementById('user-avatar-emoji').textContent = avatar;
       }
-      this.currentUser = { email: user.email, displayName: user.displayName || displayName, uid: user.uid };
+      this.currentUser = { email: user.email, displayName: resolvedDisplayName, uid: user.uid };
       // Show "Add Event" button when user is logged in
       const addEventBtn = document.getElementById('events-add-btn');
       if (addEventBtn) addEventBtn.style.display = 'inline-flex';
@@ -4428,6 +5298,7 @@ class MTApp {
     const awardsSection = document.getElementById('awards-page-section');
     if (awardsSection) {
       awardsSection.style.display = 'block';
+      this.setHeaderNavActive('awards-btn');
       this.renderTopLeaderboard();
       this.renderAwardsCatalog();
     }
@@ -4436,6 +5307,7 @@ class MTApp {
   closeAwardsPage() {
     const awardsSection = document.getElementById('awards-page-section');
     if (awardsSection) awardsSection.style.display = 'none';
+    this.setHeaderNavActive();
   }
 
   async renderTopLeaderboard() {
@@ -4480,7 +5352,7 @@ class MTApp {
   }
 
   renderAwardsCatalog() {
-    const catalogHtml = Object.entries(AWARDS).map(([key, award]) => `
+    const catalogHtml = Object.entries(AWARDS).map(([, award]) => `
       <div class="award-catalog-item">
         <div class="award-catalog-icon">${award.icon}</div>
         <div class="award-catalog-content">
@@ -4614,6 +5486,358 @@ class MTApp {
       document.getElementById('grant-award-btn').disabled = true;
     } else {
       this.showNotification(result.error || 'Failed to grant award', 'error');
+    }
+  }
+
+  // ===== MARKETPLACE FUNCTIONS =====
+
+  async showMarketplace() {
+    const currentUser = this.ds?.getCurrentUser();
+    const marketplaceSection = document.getElementById('marketplace-section');
+    const marketplaceAuthRequired = document.getElementById('marketplace-auth-required');
+    const marketplaceContent = document.getElementById('marketplace-content');
+    const marketplacePostBtn = document.getElementById('marketplace-post-btn');
+    const mapSection = document.getElementById('map-section');
+    const infoSection = document.getElementById('info-section');
+    const directorySection = document.getElementById('directory-section');
+    const countyPage = document.getElementById('county-page');
+    const cityPage = document.getElementById('city-page');
+    const adminSection = document.getElementById('admin-section');
+
+    // Hide all other sections
+    if (mapSection) mapSection.style.display = 'none';
+    if (infoSection) infoSection.style.display = 'none';
+    if (directorySection) directorySection.style.display = 'none';
+    if (countyPage) countyPage.style.display = 'none';
+    if (cityPage) cityPage.style.display = 'none';
+    if (adminSection) adminSection.style.display = 'none';
+
+    // Show marketplace
+    if (marketplaceSection) marketplaceSection.style.display = 'block';
+    this.setHeaderNavActive('marketplace-nav-btn');
+    this.setHash('/montana/marketplace');
+
+    // Check authentication
+    if (!currentUser) {
+      // Not logged in - show auth required message
+      if (marketplaceAuthRequired) marketplaceAuthRequired.style.display = 'block';
+      if (marketplaceContent) marketplaceContent.style.display = 'none';
+      if (marketplacePostBtn) marketplacePostBtn.style.display = 'none';
+    } else {
+      // Logged in - show marketplace content
+      if (marketplaceAuthRequired) marketplaceAuthRequired.style.display = 'none';
+      if (marketplaceContent) marketplaceContent.style.display = 'block';
+      if (marketplacePostBtn) marketplacePostBtn.style.display = 'inline-block';
+      
+      // Initialize marketplace
+      this.populateMarketplaceCountyDropdowns();
+      await this.refreshMarketplaceListings();
+      this.renderMarketplaceListings();
+    }
+  }
+
+  async refreshMarketplaceListings() {
+    try {
+      if (this.ds?.getMarketplaceListings) {
+        this._marketplaceListings = await this.ds.getMarketplaceListings();
+      } else {
+        this._marketplaceListings = JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+      }
+    } catch (error) {
+      console.error('Error refreshing marketplace listings:', error);
+      this._marketplaceListings = JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+    }
+
+    window.MARKETPLACE_LISTINGS = this._marketplaceListings;
+    return this._marketplaceListings;
+  }
+
+  populateMarketplaceCountyDropdowns() {
+    const filterCounty = document.getElementById('marketplace-filter-county');
+    const editCounty = document.getElementById('edit-listing-county');
+
+    const options = Object.entries(COUNTY_NAME_MAP)
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([fips, name]) => `<option value="${fips}">${name}</option>`)
+      .join('');
+
+    if (filterCounty) {
+      filterCounty.innerHTML = '<option value="">All Counties</option>' + options;
+    }
+    if (editCounty) {
+      editCounty.innerHTML = '<option value="">Select county...</option>' + options;
+    }
+  }
+
+  renderMarketplaceListings(listings = this._marketplaceListings) {
+    const container = document.getElementById('marketplace-listings');
+    if (!container) return;
+
+    const activeListings = listings.filter(listing => listing.isActive !== false);
+
+    if (activeListings.length === 0) {
+      container.innerHTML = '<p class="empty-state">No listings found. Be the first to post!</p>';
+      return;
+    }
+
+    container.innerHTML = activeListings.map(listing => {
+      const listingCategory = listing.category || listing.type;
+      const typeLabel = this.getMarketplaceTypeLabel(listingCategory);
+      const countyName = COUNTY_NAME_MAP[listing.countyFips] || 'Unknown';
+      const createdDate = new Date(listing.createdAt).toLocaleDateString();
+      const currentUser = this.ds?.getCurrentUser();
+      const isOwner = currentUser && currentUser.email === listing.contactEmail;
+      const imageSrc = listing.imageUrl || '';
+      const contactText = listing.contactInfo || listing.contactEmail || '';
+
+      return `
+        <div class="marketplace-item" data-id="${listing.id}">
+          ${imageSrc ? `<img class="marketplace-item-image" src="${this.escapeHtml(imageSrc)}" alt="${this.escapeHtml(listing.title)}">` : '<div class="marketplace-item-image marketplace-item-image-placeholder">🛍️</div>'}
+          <div class="marketplace-item-header">
+            <span class="marketplace-type-badge ${listingCategory}">${typeLabel}</span>
+            ${isOwner ? '<span class="marketplace-owner-badge">Your Listing</span>' : ''}
+          </div>
+          <h3 class="marketplace-item-title">${this.escapeHtml(listing.title)}</h3>
+          <p class="marketplace-item-description">${this.escapeHtml(listing.description)}</p>
+          <div class="marketplace-item-meta">
+            <span>📍 ${this.escapeHtml(listing.location || countyName)}</span>
+            ${listing.price ? `<span>💰 ${this.escapeHtml(listing.price)}</span>` : ''}
+            <span>📅 ${createdDate}</span>
+          </div>
+          <div class="marketplace-item-footer">
+            <div class="marketplace-item-contact">
+              <strong>${this.escapeHtml(listing.contactName)}</strong>
+              ${listing.contactPhone ? `<span>📞 ${this.escapeHtml(listing.contactPhone)}</span>` : ''}
+              <span>${this.escapeHtml(contactText)}</span>
+            </div>
+            <div>
+              <button class="nav-btn" onclick="window.mtApp.openMarketplaceViewModal('${listing.id}')">View</button>
+              ${isOwner ? `<button class="nav-btn" onclick="window.mtApp.editMarketplaceListing('${listing.id}')">Edit</button>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  getMarketplaceTypeLabel(type) {
+    const labels = {
+      buying: '🔍 Buy',
+      selling: '🏷️ Sell',
+      for_hire: '👷 For Hire',
+      for_sale: '📦 For Sale',
+      community: '📣 Community'
+    };
+    return labels[type] || type;
+  }
+
+  filterMarketplaceListings() {
+    const typeFilter = document.getElementById('marketplace-filter-type')?.value || '';
+    const countyFilter = document.getElementById('marketplace-filter-county')?.value || '';
+    const searchTerm = document.getElementById('marketplace-search')?.value.toLowerCase() || '';
+
+    const filtered = this._marketplaceListings.filter(listing => {
+      if (typeFilter && (listing.category || listing.type) !== typeFilter) return false;
+      if (countyFilter && listing.countyFips !== countyFilter) return false;
+      if (searchTerm) {
+        const searchable = `${listing.title} ${listing.description} ${listing.location}`.toLowerCase();
+        if (!searchable.includes(searchTerm)) return false;
+      }
+      return true;
+    });
+
+    this.renderMarketplaceListings(filtered);
+  }
+
+  openMarketplacePostModal(listingId = null) {
+    const modal = document.getElementById('marketplace-post-modal');
+    const title = document.getElementById('marketplace-modal-title');
+    const deleteBtn = document.getElementById('marketplace-delete-btn');
+    const currentUser = this.ds?.getCurrentUser();
+
+    if (!modal) return;
+
+    if (listingId) {
+      // Edit mode
+      const listing = this._marketplaceListings.find(l => l.id === listingId);
+      if (!listing) return;
+
+      title.textContent = 'Edit Listing';
+      document.getElementById('edit-listing-id').value = listing.id;
+      document.getElementById('edit-listing-type').value = listing.category || listing.type || '';
+      document.getElementById('edit-listing-title').value = listing.title;
+      document.getElementById('edit-listing-description').value = listing.description;
+      document.getElementById('edit-listing-price').value = listing.price || '';
+      document.getElementById('edit-listing-county').value = listing.countyFips;
+      document.getElementById('edit-listing-location').value = listing.location || '';
+      document.getElementById('edit-listing-contact-name').value = listing.contactName;
+      document.getElementById('edit-listing-contact-email').value = listing.contactEmail;
+      document.getElementById('edit-listing-contact-phone').value = listing.contactPhone || '';
+      document.getElementById('edit-listing-image').required = false;
+      
+      if (deleteBtn) deleteBtn.style.display = 'inline-block';
+    } else {
+      // Create mode
+      title.textContent = 'Post Listing';
+      document.getElementById('marketplace-post-form').reset();
+      document.getElementById('edit-listing-id').value = '';
+      document.getElementById('edit-listing-image').required = true;
+      
+      // Pre-fill user info if available
+      if (currentUser) {
+        document.getElementById('edit-listing-contact-email').value = currentUser.email;
+        if (currentUser.displayName) {
+          document.getElementById('edit-listing-contact-name').value = currentUser.displayName;
+        }
+      }
+      
+      if (deleteBtn) deleteBtn.style.display = 'none';
+    }
+
+    modal.style.display = 'flex';
+  }
+
+  openMarketplaceViewModal(listingId) {
+    const modal = document.getElementById('marketplace-view-modal');
+    if (!modal) return;
+
+    const listing = this._marketplaceListings.find(item => item.id === listingId);
+    if (!listing) return;
+
+    document.getElementById('marketplace-view-title').textContent = listing.title || '';
+    document.getElementById('marketplace-view-description').textContent = listing.description || '';
+    document.getElementById('marketplace-view-price').textContent = listing.price ? `💰 ${listing.price}` : '💰 Contact for price';
+    document.getElementById('marketplace-view-location').textContent = `📍 ${listing.location || 'Montana'}`;
+    document.getElementById('marketplace-view-date').textContent = `📅 ${new Date(listing.createdAt).toLocaleDateString()}`;
+    document.getElementById('marketplace-view-contact').textContent = listing.contactInfo || listing.contactEmail || '';
+
+    const imageEl = document.getElementById('marketplace-view-image');
+    imageEl.src = listing.imageUrl || '';
+    imageEl.style.display = listing.imageUrl ? 'block' : 'none';
+
+    modal.style.display = 'flex';
+  }
+
+  closeMarketplaceViewModal() {
+    const modal = document.getElementById('marketplace-view-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  closeMarketplacePostModal() {
+    const modal = document.getElementById('marketplace-post-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async handleMarketplacePost(e) {
+    e.preventDefault();
+
+    const currentUser = this.ds?.getCurrentUser();
+    if (!currentUser) {
+      this.showNotification('You must be logged in to post', 'error');
+      return;
+    }
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    const origText = btn?.textContent || '';
+    if (btn) { btn.textContent = 'Posting...'; btn.disabled = true; }
+
+    try {
+      const listingId = document.getElementById('edit-listing-id').value;
+      const isEdit = !!listingId;
+      const imageInput = document.getElementById('edit-listing-image');
+      const imageFile = imageInput?.files?.[0] || null;
+      const existingListing = isEdit ? this._marketplaceListings.find(item => item.id === listingId) : null;
+      const hasExistingImage = !!existingListing?.imageUrl;
+
+      if (!isEdit && !imageFile) {
+        this.showNotification('Please upload at least one image for your post.', 'error');
+        return;
+      }
+
+      let imageUrl = existingListing?.imageUrl || '';
+      if (imageFile) {
+        imageUrl = await this.ds.uploadMarketplaceImage?.(imageFile, listingId || 'new') || imageUrl;
+      }
+
+      if (!imageUrl && !hasExistingImage) {
+        this.showNotification('Image upload is required before posting.', 'error');
+        return;
+      }
+
+      const contactEmail = document.getElementById('edit-listing-contact-email').value;
+      const contactPhone = document.getElementById('edit-listing-contact-phone').value;
+      const contactInfo = contactPhone || contactEmail;
+
+      const listingData = {
+        id: listingId || undefined,
+        category: document.getElementById('edit-listing-type').value,
+        title: document.getElementById('edit-listing-title').value,
+        description: document.getElementById('edit-listing-description').value,
+        price: document.getElementById('edit-listing-price').value,
+        countyFips: document.getElementById('edit-listing-county').value,
+        location: document.getElementById('edit-listing-location').value,
+        imageUrl,
+        contactInfo,
+        contactName: document.getElementById('edit-listing-contact-name').value,
+        contactEmail,
+        contactPhone,
+        userId: currentUser.uid || currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        isActive: true,
+        createdAt: isEdit ? (existingListing?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const saved = this.ds?.saveMarketplaceListing
+        ? await this.ds.saveMarketplaceListing(listingData)
+        : listingData;
+
+      const idx = this._marketplaceListings.findIndex(item => item.id === saved.id);
+      if (idx >= 0) {
+        this._marketplaceListings[idx] = saved;
+      } else {
+        this._marketplaceListings.unshift(saved);
+      }
+      window.MARKETPLACE_LISTINGS = this._marketplaceListings;
+      localStorage.setItem('marketplaceListings', JSON.stringify(this._marketplaceListings));
+
+      this.showNotification(`✅ Listing ${isEdit ? 'updated' : 'posted'} successfully!`, 'success');
+      this.closeMarketplacePostModal();
+      this.closeMarketplaceViewModal();
+      this.renderMarketplaceListings();
+    } catch (error) {
+      console.error('Error posting marketplace listing:', error);
+      this.showNotification('Failed to post listing', 'error');
+    } finally {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }
+  }
+
+  editMarketplaceListing(listingId) {
+    this.openMarketplacePostModal(listingId);
+  }
+
+  async deleteMarketplaceListing() {
+    const listingId = document.getElementById('edit-listing-id').value;
+    if (!listingId) return;
+
+    if (!confirm('Are you sure you want to delete this listing?')) return;
+
+    const index = this._marketplaceListings.findIndex(l => l.id === listingId);
+    if (index !== -1) {
+      this._marketplaceListings.splice(index, 1);
+      window.MARKETPLACE_LISTINGS = this._marketplaceListings;
+      localStorage.setItem('marketplaceListings', JSON.stringify(this._marketplaceListings));
+
+      // Try to delete from Firebase if available
+      if (this.ds) {
+        await this.ds.deleteMarketplaceListing?.(listingId);
+      }
+
+      this.showNotification('✅ Listing deleted', 'success');
+      this.closeMarketplacePostModal();
+      this.closeMarketplaceViewModal();
+      this.renderMarketplaceListings();
     }
   }
 }
