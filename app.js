@@ -1468,6 +1468,7 @@ class MTApp {
     if (infoSection) infoSection.style.display = 'none';
     if (directory) directory.style.display = 'none';
     if (cityModal) cityModal.style.display = 'none';
+    this.setHeaderNavActive();
   }
 
   closeCityModal() {
@@ -2200,6 +2201,7 @@ class MTApp {
     if (infoSection) infoSection.style.display = 'none';
     if (cityPage) cityPage.style.display = 'none';
     if (directory) directory.style.display = 'none';
+    this.setHeaderNavActive();
   }
 
   showMapView() {
