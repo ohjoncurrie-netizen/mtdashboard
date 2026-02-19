@@ -1643,6 +1643,7 @@ class MTApp {
       const city = document.getElementById('biz-city').value;
       const address = document.getElementById('biz-address').value;
       const selectedPlan = document.querySelector('input[name="biz-plan"]:checked')?.value || 'free';
+      const billingStatus = document.getElementById('biz-billing-status')?.value || 'active';
       const planConfig = {
         free: { label: 'Free', monthlyPrice: 0, featured: false },
         pro: { label: 'Pro', monthlyPrice: 29, featured: true },
@@ -1691,6 +1692,7 @@ class MTApp {
         planLabel: plan.label,
         monthlyPrice: plan.monthlyPrice,
         featured: plan.featured,
+        billingStatus,
         lat: geocodeResult.lat,
         lng: geocodeResult.lng,
         active: true,
@@ -1707,6 +1709,8 @@ class MTApp {
       
       document.getElementById('business-form').reset();
       document.getElementById('biz-city').innerHTML = '<option value="">Select County First...</option>';
+      const billingSelect = document.getElementById('biz-billing-status');
+      if (billingSelect) billingSelect.value = 'active';
       document.getElementById('business-form-section').style.display = 'none';
       
     } catch (error) {
@@ -1720,25 +1724,51 @@ class MTApp {
   renderBusinessList() {
     const businessList = document.getElementById('business-list');
     if (!businessList) return;
-    
-    const activeBusinesses = BUSINESSES
-      .filter(b => b.active)
+
+    const isAdmin = ADMIN_CONFIG.isLoggedIn;
+    const visibleBusinesses = BUSINESSES
+      .filter(b => isAdmin ? true : (b.active && (b.billingStatus || 'active') !== 'canceled'))
       .sort((a, b) => (b.featured === true) - (a.featured === true));
-    
-    if (activeBusinesses.length === 0) {
+
+    if (visibleBusinesses.length === 0) {
       businessList.innerHTML = '<p class="empty-state">No businesses listed yet</p>';
       return;
     }
-    
-    businessList.innerHTML = activeBusinesses.map(business => `
+
+    const statusLabel = (status) => ({ active: 'Active', past_due: 'Past Due', canceled: 'Canceled' }[status] || 'Active');
+    const statusColor = (status) => ({ active: 'var(--mt-success)', past_due: 'var(--mt-warning)', canceled: 'var(--mt-danger)' }[status] || 'var(--mt-success)');
+
+    businessList.innerHTML = visibleBusinesses.map(business => {
+      const currentStatus = business.billingStatus || 'active';
+      return `
       <div style="padding: 0.75rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--parchment-dark);">
         <strong>${business.icon} ${business.name}</strong>
         ${business.featured ? '<span style="margin-left:8px;font-size:0.75rem;padding:2px 8px;border-radius:999px;background:var(--mt-gold-light);color:var(--mt-slate-900);">Featured</span>' : ''}<br>
         <small style="color: var(--ink-light);">${business.address}</small>
         <br><small style="color: var(--ink-light);">Plan: ${business.planLabel || 'Free'}${business.monthlyPrice ? ` • $${business.monthlyPrice}/mo` : ' • $0/mo'}</small>
+        <br><small style="color: ${statusColor(currentStatus)};">Billing: ${statusLabel(currentStatus)}</small>
         ${business.phone ? `<br><small>📞 ${business.phone}</small>` : ''}
+        ${isAdmin ? `<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="nav-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="mtApp.updateBusinessBillingStatus('${business.id}','active')">Set Active</button>
+          <button class="nav-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="mtApp.updateBusinessBillingStatus('${business.id}','past_due')">Set Past Due</button>
+          <button class="nav-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="mtApp.updateBusinessBillingStatus('${business.id}','canceled')">Set Canceled</button>
+        </div>` : ''}
       </div>
-    `).join('');
+    `;
+    }).join('');
+  }
+
+  updateBusinessBillingStatus(businessId, status) {
+    const business = BUSINESSES.find(item => item.id === businessId);
+    if (!business) return;
+
+    business.billingStatus = status;
+    business.active = status !== 'canceled';
+
+    localStorage.setItem('mtBusinesses', JSON.stringify(BUSINESSES));
+    this.addBusinessMarkers();
+    this.renderBusinessList();
+    this.showNotification(`Billing status updated to ${status.replace('_', ' ')}.`, 'success');
   }
 
   // ===== ADMIN PANEL METHODS =====
