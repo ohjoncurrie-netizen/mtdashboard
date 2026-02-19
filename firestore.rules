@@ -2,6 +2,100 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMarketplaceCategory(category) {
+      return category in ['buying', 'selling', 'for_hire', 'for_sale', 'community'];
+    }
+
+    function marketplaceKeysAreValid() {
+      return request.resource.data.keys().hasOnly([
+        'title',
+        'description',
+        'price',
+        'category',
+        'location',
+        'imageUrl',
+        'contactInfo',
+        'contactName',
+        'contactEmail',
+        'contactPhone',
+        'userId',
+        'userName',
+        'isActive',
+        'createdAt',
+        'updatedAt',
+        'countyFips'
+      ]);
+    }
+
+    function marketplaceRequiredFieldsPresent() {
+      return request.resource.data.keys().hasAll([
+        'title',
+        'description',
+        'category',
+        'location',
+        'imageUrl',
+        'contactInfo',
+        'userId',
+        'isActive',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function marketplaceFieldsHaveValidTypes() {
+      return request.resource.data.title is string
+        && request.resource.data.description is string
+        && request.resource.data.category is string
+        && request.resource.data.location is string
+        && request.resource.data.imageUrl is string
+        && request.resource.data.contactInfo is string
+        && request.resource.data.userId is string
+        && request.resource.data.isActive is bool
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function marketplaceFieldsHaveValidValues() {
+      return request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.location.size() > 0
+        && request.resource.data.location.size() <= 120
+        && request.resource.data.imageUrl.size() > 0
+        && request.resource.data.contactInfo.size() > 0
+        && request.resource.data.contactInfo.size() <= 200
+        && request.resource.data.userId == request.auth.uid
+        && isMarketplaceCategory(request.resource.data.category);
+    }
+
+    function isMarketplaceOwner() {
+      return resource.data.userId == request.auth.uid;
+    }
+
+    function marketplaceCreateAllowed() {
+      return isSignedIn()
+        && marketplaceKeysAreValid()
+        && marketplaceRequiredFieldsPresent()
+        && marketplaceFieldsHaveValidTypes()
+        && marketplaceFieldsHaveValidValues();
+    }
+
+    function marketplaceUpdateAllowed() {
+      return isSignedIn()
+        && isMarketplaceOwner()
+        && marketplaceKeysAreValid()
+        && marketplaceRequiredFieldsPresent()
+        && marketplaceFieldsHaveValidTypes()
+        && marketplaceFieldsHaveValidValues()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     // County data — anyone can read, only authenticated users can write
     match /counties/{countyId} {
       allow read: if true;
@@ -42,6 +136,14 @@ service cloud.firestore {
     // Admin-managed users list — only authenticated admins
     match /adminUsers/{userId} {
       allow read, write: if request.auth != null;
+    }
+
+    // Marketplace — public read, authenticated owner create/update/delete with strict validation
+    match /marketplace/{listingId} {
+      allow read: if true;
+      allow create: if marketplaceCreateAllowed();
+      allow update: if marketplaceUpdateAllowed();
+      allow delete: if isSignedIn() && isMarketplaceOwner();
     }
   }
 }
