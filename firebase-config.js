@@ -280,11 +280,14 @@
       if (this.useFirebase) {
         return auth.currentUser;
       }
-      // localStorage fallback - return mock user if logged in
+      // localStorage fallback - use same user object as header/sidebar auth UI
+      const storedUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+      if (storedUser && (storedUser.email || storedUser.displayName)) return storedUser;
+
+      // Backward compatibility for older admin-only local login sessions
       const isLoggedIn = JSON.parse(localStorage.getItem('adminConfig') || '{}').isLoggedIn;
-      if (isLoggedIn) {
-        return { email: 'admin@local', uid: 'local' };
-      }
+      if (isLoggedIn) return { email: 'admin@local', uid: 'local', displayName: 'Local Admin' };
+
       return null;
     }
 

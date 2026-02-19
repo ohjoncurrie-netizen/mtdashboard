@@ -52,7 +52,8 @@ class MTApp {
     // Setup event listeners FIRST — these don't need Google Maps
     this.setupEventListeners();
     this.setupAuthListeners();
-    this.updateAuthUI(null);
+    const storedUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    this.updateAuthUI(storedUser);
 
     // Hydrate county/city data from Firebase if available
     await this.loadDataFromFirebase();
@@ -4225,6 +4226,17 @@ class MTApp {
     // Auth state listener
     if (this.ds && this.ds.onAuthChange) {
       this.ds.onAuthChange((user) => {
+        if (this.ds.isFirebase && this.ds.isFirebase()) {
+          if (user && (user.email || user.displayName)) {
+            localStorage.setItem('currentUser', JSON.stringify({
+              email: user.email || '',
+              displayName: user.displayName || user.email?.split('@')[0] || 'User',
+              uid: user.uid || ''
+            }));
+          } else {
+            localStorage.removeItem('currentUser');
+          }
+        }
         this.updateAuthUI(user);
       });
     }
