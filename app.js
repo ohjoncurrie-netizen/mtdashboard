@@ -1642,6 +1642,13 @@ class MTApp {
       const county = document.getElementById('biz-county').value;
       const city = document.getElementById('biz-city').value;
       const address = document.getElementById('biz-address').value;
+      const selectedPlan = document.querySelector('input[name="biz-plan"]:checked')?.value || 'free';
+      const planConfig = {
+        free: { label: 'Free', monthlyPrice: 0, featured: false },
+        pro: { label: 'Pro', monthlyPrice: 29, featured: true },
+        premium: { label: 'Premium', monthlyPrice: 79, featured: true }
+      };
+      const plan = planConfig[selectedPlan] || planConfig.free;
       
       if (!county || !city) {
         throw new Error('Please select both county and city');
@@ -1680,6 +1687,10 @@ class MTApp {
         phone: document.getElementById('biz-phone').value,
         website: document.getElementById('biz-website').value,
         icon: document.getElementById('biz-icon').value || '🏪',
+        plan: selectedPlan,
+        planLabel: plan.label,
+        monthlyPrice: plan.monthlyPrice,
+        featured: plan.featured,
         lat: geocodeResult.lat,
         lng: geocodeResult.lng,
         active: true,
@@ -1692,7 +1703,7 @@ class MTApp {
       this.addBusinessMarkers();
       this.renderBusinessList();
       
-      alert(`✅ ${business.name} added successfully!\n📍 ${city}, ${geocodeResult.formatted}\n💳 Subscription activated. Expires: ${new Date(business.expires).toLocaleDateString()}`);
+      alert(`✅ ${business.name} added successfully!\n📍 ${city}, ${geocodeResult.formatted}\n💳 Plan: ${business.planLabel}${business.monthlyPrice ? ` ($${business.monthlyPrice}/mo)` : ' ($0/mo)'}\n🔄 Next renewal: ${new Date(business.expires).toLocaleDateString()}`);
       
       document.getElementById('business-form').reset();
       document.getElementById('biz-city').innerHTML = '<option value="">Select County First...</option>';
@@ -1710,7 +1721,9 @@ class MTApp {
     const businessList = document.getElementById('business-list');
     if (!businessList) return;
     
-    const activeBusinesses = BUSINESSES.filter(b => b.active);
+    const activeBusinesses = BUSINESSES
+      .filter(b => b.active)
+      .sort((a, b) => (b.featured === true) - (a.featured === true));
     
     if (activeBusinesses.length === 0) {
       businessList.innerHTML = '<p class="empty-state">No businesses listed yet</p>';
@@ -1719,8 +1732,10 @@ class MTApp {
     
     businessList.innerHTML = activeBusinesses.map(business => `
       <div style="padding: 0.75rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--parchment-dark);">
-        <strong>${business.icon} ${business.name}</strong><br>
+        <strong>${business.icon} ${business.name}</strong>
+        ${business.featured ? '<span style="margin-left:8px;font-size:0.75rem;padding:2px 8px;border-radius:999px;background:var(--mt-gold-light);color:var(--mt-slate-900);">Featured</span>' : ''}<br>
         <small style="color: var(--ink-light);">${business.address}</small>
+        <br><small style="color: var(--ink-light);">Plan: ${business.planLabel || 'Free'}${business.monthlyPrice ? ` • $${business.monthlyPrice}/mo` : ' • $0/mo'}</small>
         ${business.phone ? `<br><small>📞 ${business.phone}</small>` : ''}
       </div>
     `).join('');
