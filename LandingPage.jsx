@@ -46,7 +46,7 @@ const LandingPage = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Mountain className="w-8 h-8 text-emerald-400" />
-              <span className="text-xl font-bold tracking-tight">Montana Educational Map</span>
+              <span className="text-xl font-bold tracking-tight">Montana Insight Portal</span>
             </div>
             <div className="flex items-center gap-4">
               <a 
@@ -59,7 +59,7 @@ const LandingPage = () => {
               </a>
               <a href="index.html">
                 <button className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-lg font-semibold hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-300 hover:scale-105">
-                  Launch Map
+                  Launch Portal
                 </button>
               </a>
             </div>
@@ -82,24 +82,24 @@ const LandingPage = () => {
         >
           <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-full mb-8 backdrop-blur-sm">
             <Sparkles className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm text-slate-300">Open Source Educational Platform</span>
+            <span className="text-sm text-slate-300">Modern Geographic Intelligence Platform</span>
           </motion.div>
 
           <motion.h1 
             variants={itemVariants}
             className="text-6xl md:text-8xl font-bold tracking-tighter mb-6 bg-gradient-to-r from-slate-50 via-emerald-200 to-cyan-200 bg-clip-text text-transparent leading-tight"
           >
-            Explore Montana's
+            Montana Insight
             <br />
-            Rich History
+            Portal
           </motion.h1>
 
           <motion.p 
             variants={itemVariants}
             className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed"
           >
-            An interactive educational platform featuring layered geographic data, 
-            historical trails, and natural wonders. Built for students, educators, and explorers.
+            A modern web portal for statewide discovery, local intelligence, and community context—
+            built for educators, businesses, residents, and explorers.
           </motion.p>
 
           <motion.div 
@@ -108,12 +108,12 @@ const LandingPage = () => {
           >
             <a href="index.html">
               <button className="group px-8 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl font-semibold text-lg hover:shadow-2xl hover:shadow-emerald-500/30 transition-all duration-300 hover:scale-105 flex items-center gap-2">
-                Start Exploring
+                Open Portal
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
             </a>
             <button className="px-8 py-4 bg-slate-800/50 border border-slate-700 rounded-xl font-semibold text-lg hover:bg-slate-800 transition-all duration-300 backdrop-blur-sm">
-              View Documentation
+              View Overview
             </button>
           </motion.div>
         </motion.div>
@@ -174,7 +174,7 @@ const LandingPage = () => {
               variants={itemVariants}
               className="text-5xl md:text-6xl font-bold tracking-tight mb-4"
             >
-              Everything You Need
+              Built for Modern Discovery
             </motion.h2>
             <motion.p 
               variants={itemVariants}
@@ -328,7 +328,7 @@ const LandingPage = () => {
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
                 <Mountain className="w-8 h-8 text-emerald-400" />
-                <span className="text-xl font-bold">Montana Educational Map</span>
+                <span className="text-xl font-bold">Montana Insight Portal</span>
               </div>
               <p className="text-slate-400 max-w-md leading-relaxed">
                 An open-source platform for exploring Montana's geography, history, and natural resources through interactive layers and educational content.
@@ -358,7 +358,7 @@ const LandingPage = () => {
           
           <div className="pt-8 border-t border-slate-800/50 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-slate-500 text-sm">
-              © 2026 Montana Educational Map. Open source under MIT License.
+              © 2026 Montana Insight Portal. Open source under MIT License.
             </p>
             <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-full">
               <Mountain className="w-4 h-4 text-emerald-400" />
