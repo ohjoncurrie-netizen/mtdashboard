@@ -67,7 +67,25 @@
           const cred = await auth.signInWithEmailAndPassword(email, password);
           return { success: true, user: cred.user };
         } catch (err) {
-          return { success: false, error: err.message };
+          const extractedCode = err?.code || (err?.message?.match(/\((auth\/[a-z-]+)\)/)?.[1]);
+          console.error('Firebase login error:', extractedCode, err.message);
+          // Translate common error codes into friendly messages
+          let msg = err.message;
+          if (extractedCode === 'auth/unauthorized-domain') {
+            const domain = window.location.hostname;
+            msg = `This domain (${domain}) is not authorized in Firebase. Go to Firebase Console → Authentication → Settings → Authorized Domains and add "${domain}".`;
+          } else if (extractedCode === 'auth/user-not-found' || extractedCode === 'auth/wrong-password' || extractedCode === 'auth/invalid-credential') {
+            msg = 'Incorrect email or password.';
+          } else if (extractedCode === 'auth/invalid-email') {
+            msg = 'Please enter a valid email address.';
+          } else if (extractedCode === 'auth/too-many-requests') {
+            msg = 'Too many failed attempts. Please wait a few minutes and try again.';
+          } else if (extractedCode === 'auth/network-request-failed') {
+            msg = 'Network error — check your internet connection.';
+          } else if (extractedCode === 'auth/configuration-not-found') {
+            msg = 'Firebase Authentication is not enabled. Enable Email/Password sign-in in the Firebase Console.';
+          }
+          return { success: false, error: msg };
         }
       }
       // localStorage fallback – simple password check
@@ -560,6 +578,124 @@
       const all = JSON.parse(localStorage.getItem('eventsData')) || [];
       const filtered = all.filter(e => e.id !== eventId);
       localStorage.setItem('eventsData', JSON.stringify(filtered));
+    }
+
+    // ── Discussion Posts ──
+    async getDiscussionPosts() {
+      if (this.useFirebase) {
+        try {
+          const snap = await db.collection('discussions')
+            .orderBy('timestamp', 'desc')
+            .get();
+          const posts = [];
+          snap.forEach(doc => posts.push({ id: doc.id, ...doc.data() }));
+          return posts;
+        } catch (err) {
+          console.error('Error fetching discussion posts:', err);
+        }
+      }
+      return JSON.parse(localStorage.getItem('discussionPosts')) || [];
+    }
+
+    async saveDiscussionPost(post) {
+      if (!post.id) post.id = `post_${Date.now()}`;
+      if (this.useFirebase) {
+        try {
+          await db.collection('discussions').doc(post.id).set(post, { merge: true });
+        } catch (err) {
+          console.error('Error saving discussion post:', err);
+        }
+      }
+      // Keep localStorage in sync
+      const all = JSON.parse(localStorage.getItem('discussionPosts')) || [];
+      const idx = all.findIndex(p => p.id === post.id);
+      if (idx >= 0) all[idx] = post; else all.unshift(post);
+      localStorage.setItem('discussionPosts', JSON.stringify(all));
+      return post;
+    }
+
+    async updateDiscussionPost(postId, updates) {
+      if (this.useFirebase) {
+        try {
+          await db.collection('discussions').doc(postId).update(updates);
+        } catch (err) {
+          console.error('Error updating discussion post:', err);
+        }
+      }
+      const all = JSON.parse(localStorage.getItem('discussionPosts')) || [];
+      const idx = all.findIndex(p => p.id === postId);
+      if (idx >= 0) {
+        all[idx] = { ...all[idx], ...updates };
+        localStorage.setItem('discussionPosts', JSON.stringify(all));
+      }
+    }
+
+    async deleteDiscussionPost(postId) {
+      if (this.useFirebase) {
+        try {
+          await db.collection('discussions').doc(postId).delete();
+        } catch (err) {
+          console.error('Error deleting discussion post:', err);
+        }
+      }
+      const all = JSON.parse(localStorage.getItem('discussionPosts')) || [];
+      localStorage.setItem('discussionPosts', JSON.stringify(all.filter(p => p.id !== postId)));
+    }
+
+    // ── All Members (for startup hydration) ──
+    async getAllMembers() {
+      if (this.useFirebase) {
+        try {
+          const snap = await db.collection('members').get();
+          const result = {};
+          snap.forEach(doc => {
+            const data = doc.data();
+            // Key by displayName/name for MEMBER_PROFILES global compatibility
+            const key = data.displayName || data.name || doc.id;
+            result[key] = { uid: doc.id, ...data };
+          });
+          return result;
+        } catch (err) {
+          console.error('Error fetching all members:', err);
+        }
+      }
+      return JSON.parse(localStorage.getItem('memberProfiles')) || {};
+    }
+
+    // ── Analytics Tracking ──
+    async trackView(entry) {
+      // entry = { type, id, name, extra, ts }
+      if (this.useFirebase) {
+        try {
+          await db.collection('analytics').add(entry);
+        } catch (err) {
+          // Non-fatal — fall back silently
+        }
+      }
+      // Always persist locally for instant dashboard reads
+      const views = JSON.parse(localStorage.getItem('analyticsViews')) || [];
+      views.push(entry);
+      // Keep last 5000 entries
+      if (views.length > 5000) views.splice(0, views.length - 5000);
+      localStorage.setItem('analyticsViews', JSON.stringify(views));
+      window.ANALYTICS_VIEWS = views;
+    }
+
+    async getAnalyticsViews() {
+      if (this.useFirebase) {
+        try {
+          const snap = await db.collection('analytics')
+            .orderBy('ts', 'desc')
+            .limit(5000)
+            .get();
+          const views = [];
+          snap.forEach(doc => views.push(doc.data()));
+          return views;
+        } catch (err) {
+          // Fall back to local
+        }
+      }
+      return JSON.parse(localStorage.getItem('analyticsViews')) || [];
     }
   }
 

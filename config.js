@@ -35,6 +35,17 @@ window.DISCUSSION_POSTS = JSON.parse(localStorage.getItem('discussionPosts')) ||
 // Member profiles with ranking and awards
 window.MEMBER_PROFILES = JSON.parse(localStorage.getItem('memberProfiles')) || {};
 
+// Marketplace listings - array of marketplace items
+// Each listing: { id, type, title, description, price, location, countyFips, citySlug, 
+//                 contactName, contactEmail, contactPhone, createdAt, expiresAt, userId, 
+//                 userName, isActive, images }
+// Types: 'for-sale', 'wanted', 'hiring', 'looking-for-work'
+window.MARKETPLACE_LISTINGS = JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+
+// Analytics tracking — array of view events kept in localStorage
+// Each entry: { type, id, name, extra, ts }
+window.ANALYTICS_VIEWS = JSON.parse(localStorage.getItem('analyticsViews')) || [];
+
 // Awards definitions and tracking
 window.AWARDS = {
   montana_expert: { name: 'Montana Expert', icon: '🏆', points: 100, description: 'Shared 10+ high-quality Montana facts', category: 'knowledge' },
@@ -62,64 +73,64 @@ window.AWARDS = {
   founding_member: { name: 'Founding Member', icon: '🌟', points: 50, description: 'Among the first 10 registered members', category: 'prestige' }
 };
 
-// Montana cities by county (FIPS code)
+// Montana cities by county (FIPS code) — US Census Bureau FIPS 30001–30111
 window.COUNTY_CITIES = {
-  '30001': ['Kalispell', 'Whitefish', 'Columbia Falls', 'Bigfork'],
-  '30003': ['Helena', 'East Helena', 'Montana City'],
-  '30005': ['Billings', 'Laurel', 'Shepherd'],
-  '30007': ['Powder River (no incorporated cities)'],
-  '30009': ['Hinsdale', 'Nashua'],
-  '30011': ['Glasgow', 'Opheim'],
-  '30013': ['Miles City', 'Baker'],
-  '30015': ['Butte', 'Walkerville'],
-  '30017': ['Fort Benton', 'Geraldine', 'Highwood'],
-  '30019': ['Malta', 'Dodson'],
-  '30021': ['Missoula', 'Lolo', 'Frenchtown'],
-  '30023': ['Lodge Grass', 'Wyola'],
-  '30025': ['Bozeman', 'Belgrade', 'Manhattan', 'Three Forks'],
-  '30027': ['Great Falls', 'Malmstrom AFB'],
-  '30029': ['Glendive', 'Wibaux'],
-  '30031': ['Hardin', 'Crow Agency'],
-  '30033': ['Havre', 'Chinook'],
-  '30035': ['Dillon', 'Lima', 'Dell'],
-  '30037': ['White Sulphur Springs', 'Ringling'],
-  '30039': ['Scobey', 'Plentywood'],
-  '30041': ['Shelby', 'Conrad', 'Cut Bank'],
-  '30043': ['Deer Lodge', 'Anaconda'],
-  '30045': ['Lewistown', 'Moore'],
-  '30047': ['Forsyth', 'Colstrip'],
-  '30049': ['Hamilton', 'Darby', 'Stevensville'],
-  '30051': ['Stanford', 'Geyser'],
-  '30053': ['Livingston', 'Clyde Park'],
-  '30055': ['Wolf Point', 'Poplar', 'Brockton'],
-  '30057': ['Roundup', 'Lavina'],
-  '30059': ['Thompson Falls', 'Plains'],
-  '30061': ['Columbus', 'Absarokee'],
-  '30063': ['Libby', 'Troy'],
-  '30065': ['Chester', 'Joplin'],
-  '30067': ['Jordan (no other cities)'],
-  '30069': ['Sidney', 'Fairview'],
-  '30071': ['Red Lodge', 'Joliet'],
-  '30073': ['Polson', 'Ronan', 'St. Ignatius'],
-  '30075': ['Bridger', 'Fromberg', 'Joliet'],
-  '30077': ['Terry', 'Mildred'],
-  '30079': ['Townsend', 'Toston'],
-  '30081': ['Philipsburg', 'Drummond'],
-  '30083': ['Superior', 'Alberton'],
-  '30085': ['Choteau', 'Fairfield'],
-  '30087': ['Hot Springs', 'Dixon'],
-  '30089': ['Circle', 'Brockway'],
-  '30091': ['Plentywood', 'Medicine Lake'],
-  '30093': ['Butte', 'Walkerville'],
-  '30095': ['Columbus', 'Absarokee'],
-  '30097': ['Big Timber', 'Melville'],
-  '30099': ['Choteau', 'Fairfield', 'Dutton'],
-  '30101': ['Shelby', 'Sunburst', 'Kevin'],
-  '30103': ['Hysham (no other cities)'],
-  '30105': ['Glasgow', 'Fort Peck'],
-  '30107': ['Harlowton', 'Judith Gap'],
-  '30109': ['Wibaux (no other cities)'],
-  '30111': ['Billings', 'Laurel', 'Shepherd', 'Lockwood']
+  '30001': ['Dillon', 'Lima', 'Dell', 'Wisdom'],                              // Beaverhead
+  '30003': ['Hardin', 'Lodge Grass', 'Crow Agency', 'Wyola'],                 // Big Horn
+  '30005': ['Chinook', 'Harlem', 'Dodson', 'Zurich'],                         // Blaine
+  '30007': ['Townsend', 'Toston'],                                             // Broadwater
+  '30009': ['Red Lodge', 'Joliet', 'Bridger', 'Fromberg'],                    // Carbon
+  '30011': ['Ekalaka'],                                                        // Carter
+  '30013': ['Great Falls', 'Belt', 'Cascade'],                                // Cascade
+  '30015': ['Fort Benton', 'Geraldine', 'Highwood', 'Big Sandy'],             // Chouteau
+  '30017': ['Miles City'],                                                     // Custer
+  '30019': ['Scobey'],                                                         // Daniels
+  '30021': ['Glendive', 'Richey'],                                             // Dawson
+  '30023': ['Anaconda'],                                                       // Deer Lodge
+  '30025': ['Baker', 'Plevna'],                                               // Fallon
+  '30027': ['Lewistown', 'Moore', 'Grass Range'],                             // Fergus
+  '30029': ['Kalispell', 'Whitefish', 'Columbia Falls', 'Bigfork', 'Lakeside'], // Flathead
+  '30031': ['Bozeman', 'Belgrade', 'Manhattan', 'Three Forks', 'West Yellowstone'], // Gallatin
+  '30033': ['Jordan'],                                                         // Garfield
+  '30035': ['Cut Bank', 'Browning'],                                           // Glacier
+  '30037': ['Ryegate'],                                                        // Golden Valley
+  '30039': ['Philipsburg', 'Drummond'],                                        // Granite
+  '30041': ['Havre', 'Box Elder', 'Rudyard'],                                  // Hill
+  '30043': ['Boulder', 'Whitehall', 'Clancy'],                                // Jefferson
+  '30045': ['Stanford', 'Geyser', 'Hobson'],                                  // Judith Basin
+  '30047': ['Polson', 'Ronan', 'St. Ignatius', 'Pablo'],                      // Lake
+  '30049': ['Helena', 'East Helena'],                                          // Lewis and Clark
+  '30051': ['Chester', 'Joplin'],                                              // Liberty
+  '30053': ['Libby', 'Troy', 'Eureka'],                                        // Lincoln
+  '30055': ['Circle', 'Brockway'],                                             // McCone
+  '30057': ['Ennis', 'Twin Bridges', 'Virginia City', 'Sheridan'],            // Madison
+  '30059': ['White Sulphur Springs', 'Ringling'],                              // Meagher
+  '30061': ['Superior', 'Alberton', 'St. Regis'],                             // Mineral
+  '30063': ['Missoula', 'Lolo', 'Frenchtown'],                                // Missoula
+  '30065': ['Roundup', 'Lavina'],                                              // Musselshell
+  '30067': ['Livingston', 'Gardiner', 'Clyde Park'],                          // Park
+  '30069': ['Winnett'],                                                        // Petroleum
+  '30071': ['Malta', 'Dodson', 'Saco'],                                       // Phillips
+  '30073': ['Conrad', 'Valier'],                                               // Pondera
+  '30075': ['Broadus', 'Ashland'],                                             // Powder River
+  '30077': ['Deer Lodge'],                                                     // Powell
+  '30079': ['Terry', 'Mildred'],                                               // Prairie
+  '30081': ['Hamilton', 'Darby', 'Stevensville', 'Corvallis', 'Victor'],      // Ravalli
+  '30083': ['Sidney', 'Fairview', 'Lambert'],                                  // Richland
+  '30085': ['Wolf Point', 'Poplar', 'Brockton', 'Culbertson'],                // Roosevelt
+  '30087': ['Forsyth', 'Colstrip'],                                            // Rosebud
+  '30089': ['Thompson Falls', 'Plains', 'Hot Springs', 'Dixon'],              // Sanders
+  '30091': ['Plentywood', 'Medicine Lake'],                                    // Sheridan
+  '30093': ['Butte', 'Walkerville'],                                           // Silver Bow
+  '30095': ['Columbus', 'Absarokee'],                                          // Stillwater
+  '30097': ['Big Timber', 'Melville'],                                         // Sweet Grass
+  '30099': ['Choteau', 'Fairfield', 'Dutton'],                                // Teton
+  '30101': ['Shelby', 'Sunburst', 'Kevin'],                                    // Toole
+  '30103': ['Hysham'],                                                         // Treasure
+  '30105': ['Glasgow', 'Fort Peck', 'Nashua', 'Hinsdale'],                    // Valley
+  '30107': ['Harlowton', 'Judith Gap'],                                        // Wheatland
+  '30109': ['Wibaux'],                                                         // Wibaux
+  '30111': ['Billings', 'Laurel', 'Shepherd', 'Lockwood']                     // Yellowstone
 };
 
 // Admin credentials (stored in localStorage for security)

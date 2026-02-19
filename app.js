@@ -42,6 +42,8 @@ class MTApp {
     this.countySlugToFips = this.buildCountySlugMap();
     this.isUpdatingHash = false;
     this.ds = window.dataService; // Data service (Firebase or localStorage)
+    this._eventsAllCache = []; // Cache for community events page filtering
+    this._currentShareEvent = null;
   }
 
   async init() {
@@ -49,6 +51,9 @@ class MTApp {
     this.setupEventListeners();
     this.setupAuthListeners();
     this.updateAuthUI(null);
+
+    // Hydrate county/city data from Firebase if available
+    await this.loadDataFromFirebase();
 
     // Initialize the Leaflet map (no Google Maps dependency)
     this.initMap();
@@ -137,33 +142,75 @@ class MTApp {
     console.log('✅ Montana County Explorer initialized');
   }
 
+  /**
+   * Pull county and city data from Firestore on startup so edits made by any
+   * admin session are reflected immediately, regardless of browser/device.
+   * Falls back to localStorage silently if Firebase is unavailable.
+   */
+  async loadDataFromFirebase() {
+    if (!this.ds || !this.ds.isFirebase()) return;
+    try {
+      const [countySnapshot, citySnapshot, discussionPosts, memberProfiles] = await Promise.all([
+        this.ds.getAllCountyData(),
+        this.ds.getAllCityData(),
+        this.ds.getDiscussionPosts(),
+        this.ds.getAllMembers()
+      ]);
+      // Counties
+      if (countySnapshot && Object.keys(countySnapshot).length > 0) {
+        Object.assign(window.COUNTY_DATA, countySnapshot);
+        localStorage.setItem('countyData', JSON.stringify(window.COUNTY_DATA));
+      }
+      // Cities
+      if (citySnapshot && Object.keys(citySnapshot).length > 0) {
+        Object.assign(window.CITY_DATA, citySnapshot);
+        localStorage.setItem('cityData', JSON.stringify(window.CITY_DATA));
+      }
+      // Discussion posts — replace array in place so all references stay valid
+      if (discussionPosts && discussionPosts.length > 0) {
+        window.DISCUSSION_POSTS.length = 0;
+        window.DISCUSSION_POSTS.push(...discussionPosts);
+        localStorage.setItem('discussionPosts', JSON.stringify(window.DISCUSSION_POSTS));
+      }
+      // Member profiles
+      if (memberProfiles && Object.keys(memberProfiles).length > 0) {
+        Object.assign(window.MEMBER_PROFILES, memberProfiles);
+        localStorage.setItem('memberProfiles', JSON.stringify(window.MEMBER_PROFILES));
+      }
+      console.log('✅ Data loaded from Firebase (posts, counties, cities, members)');
+    } catch (err) {
+      console.warn('⚠️ Could not load data from Firebase, using localStorage cache:', err.message);
+    }
+  }
+
   populateCountyDropdown() {
     const countySelect = document.getElementById('biz-county');
     if (!countySelect) return;
     
-    // County names mapping
+    // County names mapping — US Census Bureau FIPS 30001–30111
     const countyNames = {
-      '30001': 'Flathead', '30003': 'Broadwater', '30005': 'Yellowstone',
-      '30007': 'Powder River', '30009': 'Valley', '30011': 'Phillips',
-      '30013': 'Custer', '30015': 'Silver Bow', '30017': 'Chouteau',
-      '30019': 'Phillips', '30021': 'Missoula', '30023': 'Big Horn',
-      '30025': 'Gallatin', '30027': 'Cascade', '30029': 'Dawson',
-      '30031': 'Big Horn', '30033': 'Hill', '30035': 'Beaverhead',
-      '30037': 'Meagher', '30039': 'Daniels', '30041': 'Toole',
-      '30043': 'Powell', '30045': 'Fergus', '30047': 'Rosebud',
-      '30049': 'Ravalli', '30051': 'Judith Basin', '30053': 'Park',
-      '30055': 'Roosevelt', '30057': 'Musselshell', '30059': 'Sanders',
-      '30061': 'Stillwater', '30063': 'Lincoln', '30065': 'Liberty',
-      '30067': 'Garfield', '30069': 'Richland', '30071': 'Carbon',
-      '30073': 'Lake', '30075': 'Carbon', '30077': 'Prairie',
-      '30079': 'Broadwater', '30081': 'Granite', '30083': 'Mineral',
-      '30085': 'Teton', '30087': 'Sanders', '30089': 'McCone',
-      '30091': 'Sheridan', '30093': 'Silver Bow', '30095': 'Stillwater',
-      '30097': 'Sweet Grass', '30099': 'Teton', '30101': 'Toole',
-      '30103': 'Treasure', '30105': 'Valley', '30107': 'Wheatland',
-      '30109': 'Wibaux', '30111': 'Yellowstone'
+      '30001': 'Beaverhead',   '30003': 'Big Horn',      '30005': 'Blaine',
+      '30007': 'Broadwater',   '30009': 'Carbon',         '30011': 'Carter',
+      '30013': 'Cascade',      '30015': 'Chouteau',       '30017': 'Custer',
+      '30019': 'Daniels',      '30021': 'Dawson',         '30023': 'Deer Lodge',
+      '30025': 'Fallon',       '30027': 'Fergus',         '30029': 'Flathead',
+      '30031': 'Gallatin',     '30033': 'Garfield',       '30035': 'Glacier',
+      '30037': 'Golden Valley','30039': 'Granite',        '30041': 'Hill',
+      '30043': 'Jefferson',    '30045': 'Judith Basin',   '30047': 'Lake',
+      '30049': 'Lewis and Clark','30051': 'Liberty',      '30053': 'Lincoln',
+      '30055': 'McCone',       '30057': 'Madison',        '30059': 'Meagher',
+      '30061': 'Mineral',      '30063': 'Missoula',       '30065': 'Musselshell',
+      '30067': 'Park',         '30069': 'Petroleum',      '30071': 'Phillips',
+      '30073': 'Pondera',      '30075': 'Powder River',   '30077': 'Powell',
+      '30079': 'Prairie',      '30081': 'Ravalli',        '30083': 'Richland',
+      '30085': 'Roosevelt',    '30087': 'Rosebud',        '30089': 'Sanders',
+      '30091': 'Sheridan',     '30093': 'Silver Bow',     '30095': 'Stillwater',
+      '30097': 'Sweet Grass',  '30099': 'Teton',          '30101': 'Toole',
+      '30103': 'Treasure',     '30105': 'Valley',         '30107': 'Wheatland',
+      '30109': 'Wibaux',       '30111': 'Yellowstone'
     };
     
+
     // Clear existing options except the first one
     countySelect.innerHTML = '<option value="">Select County...</option>';
     
@@ -448,6 +495,37 @@ class MTApp {
         this.showDirectory();
       });
     }
+
+    // Marketplace link
+    const sidebarMarketplace = document.getElementById('sidebar-marketplace');
+    if (sidebarMarketplace) {
+      sidebarMarketplace.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.closeSidebar();
+        this.showMarketplace();
+      });
+    }
+
+    // Sidebar auth buttons (mobile)
+    document.getElementById('sidebar-signin-btn')?.addEventListener('click', () => {
+      this.closeSidebar();
+      this.showAuthModal('signin');
+    });
+    document.getElementById('sidebar-register-btn')?.addEventListener('click', () => {
+      this.closeSidebar();
+      this.showAuthModal('register');
+    });
+    document.getElementById('sidebar-profile-btn')?.addEventListener('click', () => {
+      this.closeSidebar();
+      this.showProfileModal();
+    });
+    document.getElementById('sidebar-signout-btn-mobile')?.addEventListener('click', () => {
+      this.closeSidebar();
+      this.handleSignOut();
+    });
+
+    // Hide / Show map toggle
+    document.getElementById('map-toggle-btn')?.addEventListener('click', () => this.toggleMapVisibility());
     
     // Directory button in header
     const directoryBtn = document.getElementById('directory-btn');
@@ -701,6 +779,90 @@ class MTApp {
     if (eventDeleteBtn) {
       eventDeleteBtn.addEventListener('click', () => this.handleEventDelete());
     }
+
+    // ===== MARKETPLACE =====
+
+    // Marketplace navigation
+    const marketplaceBackBtn = document.getElementById('marketplace-back-btn');
+    if (marketplaceBackBtn) {
+      marketplaceBackBtn.addEventListener('click', () => this.showMapView());
+    }
+
+    // Marketplace auth buttons
+    const marketplaceSigninBtn = document.getElementById('marketplace-signin-btn');
+    const marketplaceRegisterBtn = document.getElementById('marketplace-register-btn');
+    if (marketplaceSigninBtn) {
+      marketplaceSigninBtn.addEventListener('click', () => this.showAuthModal('signin'));
+    }
+    if (marketplaceRegisterBtn) {
+      marketplaceRegisterBtn.addEventListener('click', () => this.showAuthModal('register'));
+    }
+
+    // Marketplace post button
+    const marketplacePostBtn = document.getElementById('marketplace-post-btn');
+    if (marketplacePostBtn) {
+      marketplacePostBtn.addEventListener('click', () => this.openMarketplacePostModal());
+    }
+
+    // Marketplace filters
+    const marketplaceFilterType = document.getElementById('marketplace-filter-type');
+    const marketplaceFilterCounty = document.getElementById('marketplace-filter-county');
+    const marketplaceSearch = document.getElementById('marketplace-search');
+    if (marketplaceFilterType) {
+      marketplaceFilterType.addEventListener('change', () => this.filterMarketplaceListings());
+    }
+    if (marketplaceFilterCounty) {
+      marketplaceFilterCounty.addEventListener('change', () => this.filterMarketplaceListings());
+    }
+    if (marketplaceSearch) {
+      marketplaceSearch.addEventListener('input', () => this.filterMarketplaceListings());
+    }
+
+    // Marketplace post form
+    const marketplacePostForm = document.getElementById('marketplace-post-form');
+    if (marketplacePostForm) {
+      marketplacePostForm.addEventListener('submit', (e) => this.handleMarketplacePost(e));
+    }
+
+    // Marketplace modal close buttons
+    const marketplaceModalCloseBtn = document.getElementById('marketplace-modal-close-btn');
+    const marketplaceModalCancelBtn = document.getElementById('marketplace-modal-cancel-btn');
+    if (marketplaceModalCloseBtn) {
+      marketplaceModalCloseBtn.addEventListener('click', () => this.closeMarketplacePostModal());
+    }
+    if (marketplaceModalCancelBtn) {
+      marketplaceModalCancelBtn.addEventListener('click', () => this.closeMarketplacePostModal());
+    }
+
+    // Marketplace delete button
+    const marketplaceDeleteBtn = document.getElementById('marketplace-delete-btn');
+    if (marketplaceDeleteBtn) {
+      marketplaceDeleteBtn.addEventListener('click', () => this.deleteMarketplaceListing());
+    }
+  }
+
+  toggleMapVisibility() {
+    const collapsible = document.getElementById('map-collapsible');
+    const label       = document.getElementById('map-toggle-label');
+    const icon        = document.getElementById('map-toggle-icon');
+    const btn         = document.getElementById('map-toggle-btn');
+    if (!collapsible) return;
+
+    const isHidden = collapsible.classList.toggle('map-collapsed');
+
+    if (isHidden) {
+      label.textContent = 'Show Map';
+      btn.title = 'Show map';
+      // eye icon
+      icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    } else {
+      label.textContent = 'Hide Map';
+      btn.title = 'Hide map';
+      // eye-off icon
+      icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+      // Invalidate Leaflet map size so tiles render correctly after reveal
+      if (this.map) setTimeout(() => this.map.invalidateSize(), 50);
+    }
   }
 
   toggleCountyLayer() {
@@ -771,15 +933,17 @@ class MTApp {
   async handleDiscussionPost(e) {
     e.preventDefault();
 
-    const username = document.getElementById('discussion-username').value.trim();
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const username = currentUser.displayName || currentUser.email?.split('@')[0] || 'Community Member';
     const topic = document.getElementById('discussion-topic').value.trim();
     const message = document.getElementById('discussion-message').value.trim();
     const category = document.getElementById('discussion-category').value;
 
-    if (!username || !topic || !message || !category) {
+    if (!topic || !message || !category) {
       this.showNotification('❌ Please fill in all fields', 'error');
       return;
     }
+    this.trackPageView('discussion', `disc_${Date.now()}`, topic);
 
     // Create post object
     const post = {
@@ -820,6 +984,13 @@ class MTApp {
 
     // Check for awards
     this.awardMembersForActivity(username);
+
+    // Persist to Firestore
+    this.ds.saveDiscussionPost(post).catch(err => console.warn('Firestore post save failed:', err));
+    if (currentUser.uid && MEMBER_PROFILES[username]) {
+      this.ds.saveMemberProfile(currentUser.uid, { ...MEMBER_PROFILES[username], uid: currentUser.uid })
+        .catch(err => console.warn('Firestore member save failed:', err));
+    }
 
     this.showNotification(`✅ Discussion posted! You earned ${post.points} points!`, 'success');
     e.target.reset();
@@ -879,7 +1050,18 @@ class MTApp {
       return;
     }
 
-    list.innerHTML = filtered.map(post => `
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const currentUsername = currentUser.displayName || currentUser.email?.split('@')[0] || '';
+    const isAdmin = ADMIN_CONFIG.isLoggedIn;
+
+    list.innerHTML = filtered.map(post => {
+      const isOwner = currentUsername && post.username === currentUsername;
+      const canModify = isOwner || isAdmin;
+      const modifyButtons = canModify ? `
+        <button class="action-btn action-btn--edit" onclick="mtApp.openEditPostModal('${post.id}')">✏️ Edit</button>
+        <button class="action-btn action-btn--delete" onclick="mtApp.deletePost('${post.id}')">🗑️ Delete</button>
+      ` : '';
+      return `
       <div class="discussion-post">
         <div class="post-header">
           <div class="post-author">
@@ -889,7 +1071,7 @@ class MTApp {
           <span class="post-time">${this.formatDate(post.timestamp)}</span>
         </div>
         <span class="post-category-badge">${this.getCategoryEmoji(post.category)} ${this.getCategoryLabel(post.category)}</span>
-        <h3 class="post-topic">${this.escapeHtml(post.topic)}</h3>
+        <h3 class="post-topic">${this.escapeHtml(post.topic)}${post.edited ? ' <span class="post-edited-badge">(edited)</span>' : ''}</h3>
         <div class="post-content">${this.escapeHtml(post.message)}</div>
         <div class="post-stats">
           <div class="stat-item">👍 <span>${post.helpful || 0} Helpful</span></div>
@@ -899,10 +1081,93 @@ class MTApp {
         <div class="post-actions">
           <button class="action-btn" onclick="mtApp.markPostHelpful('${post.id}')">👍 Helpful</button>
           <button class="action-btn" onclick="mtApp.togglePostReplies('${post.id}')">💬 Reply</button>
+          ${modifyButtons}
         </div>
         <div id="replies-${post.id}" class="post-replies" style="display: none;"></div>
       </div>
-    `).join('');
+    `;
+    }).join('');
+  }
+
+  openEditPostModal(postId) {
+    const post = DISCUSSION_POSTS.find(p => p.id === postId);
+    if (!post) return;
+
+    document.getElementById('edit-post-id').value = post.id;
+    document.getElementById('edit-post-topic').value = post.topic;
+    document.getElementById('edit-post-message').value = post.message;
+    document.getElementById('edit-post-category').value = post.category;
+
+    const modal = document.getElementById('discussion-edit-modal');
+    if (modal) modal.style.display = 'flex';
+
+    // Wire up form/buttons once
+    const form = document.getElementById('discussion-edit-form');
+    form.onsubmit = (e) => this.saveEditPost(e);
+    document.getElementById('discussion-edit-close-btn').onclick = () => this.closeEditPostModal();
+    document.getElementById('discussion-edit-cancel-btn').onclick = () => this.closeEditPostModal();
+  }
+
+  closeEditPostModal() {
+    const modal = document.getElementById('discussion-edit-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  saveEditPost(e) {
+    e.preventDefault();
+    const postId = document.getElementById('edit-post-id').value;
+    const post = DISCUSSION_POSTS.find(p => p.id === postId);
+    if (!post) return;
+
+    post.topic = document.getElementById('edit-post-topic').value.trim();
+    post.message = document.getElementById('edit-post-message').value.trim();
+    post.category = document.getElementById('edit-post-category').value;
+    post.edited = true;
+    post.editedAt = new Date().toISOString();
+
+    localStorage.setItem('discussionPosts', JSON.stringify(DISCUSSION_POSTS));
+
+    // Persist edit to Firestore
+    this.ds.updateDiscussionPost(postId, {
+      topic: post.topic,
+      message: post.message,
+      category: post.category,
+      edited: true,
+      editedAt: post.editedAt
+    }).catch(err => console.warn('Firestore post update failed:', err));
+
+    this.closeEditPostModal();
+    this.showNotification('✅ Post updated successfully!', 'success');
+    this.renderDiscussions();
+  }
+
+  deletePost(postId) {
+    if (!confirm('Are you sure you want to delete this post? This cannot be undone.')) return;
+    const index = DISCUSSION_POSTS.findIndex(p => p.id === postId);
+    if (index === -1) return;
+
+    const post = DISCUSSION_POSTS[index];
+    // Deduct points from member profile
+    if (MEMBER_PROFILES[post.username]) {
+      MEMBER_PROFILES[post.username].totalPoints = Math.max(0, (MEMBER_PROFILES[post.username].totalPoints || 0) - (post.points || 0));
+      MEMBER_PROFILES[post.username].postCount = Math.max(0, (MEMBER_PROFILES[post.username].postCount || 1) - 1);
+      localStorage.setItem('memberProfiles', JSON.stringify(MEMBER_PROFILES));
+    }
+
+    DISCUSSION_POSTS.splice(index, 1);
+    localStorage.setItem('discussionPosts', JSON.stringify(DISCUSSION_POSTS));
+
+    // Persist deletion and member update to Firestore
+    this.ds.deleteDiscussionPost(postId).catch(err => console.warn('Firestore post delete failed:', err));
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    if (currentUser.uid && MEMBER_PROFILES[post.username]) {
+      this.ds.saveMemberProfile(currentUser.uid, { ...MEMBER_PROFILES[post.username], uid: currentUser.uid })
+        .catch(err => console.warn('Firestore member save failed:', err));
+    }
+
+    this.showNotification('🗑️ Post deleted.', 'success');
+    this.renderDiscussions();
+    this.updateLeaderboard();
   }
 
   markPostHelpful(postId) {
@@ -915,6 +1180,11 @@ class MTApp {
       this.awardMembersForActivity(post.username);
       
       localStorage.setItem('discussionPosts', JSON.stringify(DISCUSSION_POSTS));
+
+      // Persist helpful vote to Firestore
+      this.ds.updateDiscussionPost(postId, { helpful: post.helpful, points: post.points })
+        .catch(err => console.warn('Firestore helpful update failed:', err));
+
       this.showNotification('✅ Marked as helpful! Author earned bonus points', 'success');
       this.renderDiscussions();
       this.updateLeaderboard();
@@ -986,6 +1256,13 @@ class MTApp {
     }
 
     localStorage.setItem('memberProfiles', JSON.stringify(MEMBER_PROFILES));
+
+    // Persist awards + points to Firestore
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    if (currentUser.uid && MEMBER_PROFILES[username]) {
+      this.ds.saveMemberProfile(currentUser.uid, { ...MEMBER_PROFILES[username], uid: currentUser.uid })
+        .catch(err => console.warn('Firestore member award save failed:', err));
+    }
   }
 
   getMemberRank(username) {
@@ -1071,6 +1348,7 @@ class MTApp {
     this.setHash(`/montana/${this.slugify(countyName)}/${this.slugify(cityName)}`);
     const cityEditBtn = document.getElementById('city-open-admin');
     if (cityEditBtn) cityEditBtn.style.display = ADMIN_CONFIG.isLoggedIn ? '' : 'none';
+    this.trackPageView('city', `${fipsCode}_${this.slugify(cityName)}`, cityName, { county: countyName, fips: fipsCode });
   }
 
   renderCityPage(cityName, countyName, fipsCode) {
@@ -1081,12 +1359,23 @@ class MTApp {
     const activitiesEl = document.getElementById('city-page-activities');
     const highlightsEl = document.getElementById('city-page-highlights');
     const businessesEl = document.getElementById('city-page-businesses');
+    const heroContainer = document.getElementById('city-hero');
+    const heroImage = document.getElementById('city-hero-image');
 
     if (!titleEl) return;
 
     const citySlug = this.slugify(cityName);
     const key = `${fipsCode}_${citySlug}`;
     const cityData = CITY_DATA[key] || {};
+
+    // Update hero image
+    if (cityData.heroImage && heroContainer && heroImage) {
+      heroImage.src = cityData.heroImage;
+      heroImage.alt = `${cityName} landscape`;
+      heroContainer.style.display = 'block';
+    } else if (heroContainer) {
+      heroContainer.style.display = 'none';
+    }
 
     titleEl.textContent = cityName;
     countyLabel.textContent = `${countyName} · Montana`;
@@ -1501,6 +1790,8 @@ class MTApp {
       this.loadEventList();
     } else if (tabName === 'community-awards') {
       this.setupCommunityAwardsTab();
+    } else if (tabName === 'analytics') {
+      this.renderAnalyticsDashboard();
     }
   }
 
@@ -1579,6 +1870,7 @@ class MTApp {
     document.getElementById('edit-county-area').value = countyData.area || '';
     document.getElementById('edit-county-website').value = countyData.website || '';
     document.getElementById('edit-county-poi').value = countyData.poi || '';
+    document.getElementById('edit-county-hero-image').value = countyData.heroImage || '';
     
     // Show modal
     document.getElementById('county-edit-modal').style.display = 'flex';
@@ -1591,39 +1883,51 @@ class MTApp {
 
   async handleCountyUpdate(e) {
     e.preventDefault();
-    
-    const fips = document.getElementById('edit-county-id').value;
-    const countyData = {
-      description: document.getElementById('edit-county-description').value,
-      population: document.getElementById('edit-county-population').value,
-      seat: document.getElementById('edit-county-seat').value,
-      established: document.getElementById('edit-county-established').value,
-      area: document.getElementById('edit-county-area').value,
-      website: document.getElementById('edit-county-website').value,
-      poi: document.getElementById('edit-county-poi').value
-    };
-    
-    // Save via data service (Firebase + localStorage)
-    if (this.ds) {
-      await this.ds.saveCountyData(fips, countyData);
-    }
-    // Also update in-memory
-    COUNTY_DATA[fips] = countyData;
-    
-    // Update the county list display
-    this.loadCountyList();
-    
-    // Close modal
-    this.closeModal();
 
-    if (this.currentCounty && this.currentCounty.fips === fips) {
-      this.renderCountyPage(fips, this.currentCounty.name);
-    }
+    const btn = e.target.querySelector('button[type="submit"]');
+    const origText = btn ? btn.textContent : '';
+    if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
 
-    // Refresh directory card
-    this.buildCountyDirectory();
-    
-    alert('✅ County information updated successfully!');
+    try {
+      const fips = document.getElementById('edit-county-id').value;
+      const countyData = {
+        description: document.getElementById('edit-county-description').value,
+        population: document.getElementById('edit-county-population').value,
+        seat: document.getElementById('edit-county-seat').value,
+        established: document.getElementById('edit-county-established').value,
+        area: document.getElementById('edit-county-area').value,
+        website: document.getElementById('edit-county-website').value,
+        poi: document.getElementById('edit-county-poi').value,
+        heroImage: document.getElementById('edit-county-hero-image').value
+      };
+
+      // Save via data service (Firebase + localStorage)
+      if (this.ds) {
+        await this.ds.saveCountyData(fips, countyData);
+      }
+      // Also update in-memory
+      COUNTY_DATA[fips] = countyData;
+
+      // Update the county list display
+      this.loadCountyList();
+
+      // Close modal
+      this.closeModal();
+
+      if (this.currentCounty && this.currentCounty.fips === fips) {
+        this.renderCountyPage(fips, this.currentCounty.name);
+      }
+
+      // Refresh directory card
+      this.buildCountyDirectory();
+
+      this.showNotification('✅ County information updated successfully!', 'success');
+    } catch (err) {
+      console.error('County save error:', err);
+      this.showNotification(`❌ Save failed: ${err.message || err}`, 'error');
+    } finally {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }
   }
 
   async handlePasswordChange(e) {
@@ -1662,6 +1966,135 @@ class MTApp {
     document.getElementById('confirm-password').value = '';
     
     alert('✅ Admin password updated successfully!');
+  }
+
+  // ── Analytics Tracking ─────────────────────────────────────────────────
+
+  trackPageView(type, id, name, extra = {}) {
+    const entry = { type, id, name, extra, ts: Date.now() };
+    // Persist locally immediately
+    const views = JSON.parse(localStorage.getItem('analyticsViews')) || [];
+    views.push(entry);
+    if (views.length > 5000) views.splice(0, views.length - 5000);
+    localStorage.setItem('analyticsViews', JSON.stringify(views));
+    window.ANALYTICS_VIEWS = views;
+    // Send to Firebase async (non-blocking)
+    if (this.ds && typeof this.ds.trackView === 'function') {
+      this.ds.trackView(entry).catch(() => {});
+    }
+  }
+
+  async renderAnalyticsDashboard() {
+    // Fetch views (Firestore if available, else localStorage)
+    let views = window.ANALYTICS_VIEWS || [];
+    if (this.ds && typeof this.ds.getAnalyticsViews === 'function') {
+      try { views = await this.ds.getAnalyticsViews(); } catch (e) {}
+    }
+
+    const now = Date.now();
+    const dayMs = 86400000;
+    const todayViews = views.filter(v => now - v.ts < dayMs);
+    const countyViews = views.filter(v => v.type === 'county');
+    const cityViews   = views.filter(v => v.type === 'city');
+    const evtViews    = views.filter(v => v.type === 'event');
+    const discViews   = views.filter(v => v.type === 'discussion');
+
+    // Summary cards
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('stat-total-views',    views.length.toLocaleString());
+    set('stat-today-views',    todayViews.length.toLocaleString());
+    set('stat-county-views',   countyViews.length.toLocaleString());
+    set('stat-city-views',     cityViews.length.toLocaleString());
+    set('stat-discussions',    (window.DISCUSSION_POSTS || []).length.toLocaleString());
+    // Count events from Firestore cache or local
+    const allEvents = this._eventsAllCache || [];
+    set('stat-events-created', allEvents.length.toLocaleString());
+
+    // Helper: aggregate views by id
+    const aggregate = (arr) => {
+      const map = {};
+      arr.forEach(v => {
+        if (!map[v.id]) map[v.id] = { name: v.name, count: 0, extra: v.extra || {} };
+        map[v.id].count++;
+      });
+      return Object.values(map).sort((a, b) => b.count - a.count);
+    };
+
+    // Bar chart renderer
+    const renderBars = (containerId, rows, maxRows = 10) => {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      const top = rows.slice(0, maxRows);
+      if (top.length === 0) { el.innerHTML = '<p class="empty-state">No data yet.</p>'; return; }
+      const maxCount = top[0].count;
+      el.innerHTML = top.map((r, i) => `
+        <div class="analytics-bar-row">
+          <div class="analytics-bar-label" title="${r.name}">${r.name}</div>
+          <div class="analytics-bar-track">
+            <div class="analytics-bar-fill" style="width:${Math.round((r.count/maxCount)*100)}%"></div>
+          </div>
+          <div class="analytics-bar-count">${r.count}</div>
+        </div>
+      `).join('');
+    };
+
+    renderBars('chart-top-counties', aggregate(countyViews));
+    renderBars('chart-top-cities',   aggregate(cityViews));
+
+    // Most active discussions
+    const discEl = document.getElementById('analytics-discussions');
+    if (discEl) {
+      const posts = (window.DISCUSSION_POSTS || []).slice();
+      posts.sort((a, b) => {
+        const scoreA = (a.helpful || 0) + (a.replies || []).length;
+        const scoreB = (b.helpful || 0) + (b.replies || []).length;
+        return scoreB - scoreA;
+      });
+      const top = posts.slice(0, 8);
+      if (top.length === 0) {
+        discEl.innerHTML = '<p class="empty-state">No discussions yet.</p>';
+      } else {
+        discEl.innerHTML = `
+          <table class="analytics-table">
+            <thead><tr><th>Topic</th><th>Author</th><th>Category</th><th>👍 Helpful</th><th>💬 Replies</th></tr></thead>
+            <tbody>
+              ${top.map(p => `
+                <tr>
+                  <td>${p.topic || '—'}</td>
+                  <td>${p.username || '—'}</td>
+                  <td>${p.category || '—'}</td>
+                  <td>${p.helpful || 0}</td>
+                  <td>${(p.replies || []).length}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+    }
+
+    // Recent activity feed
+    const feedEl = document.getElementById('analytics-feed');
+    if (feedEl) {
+      const recent = views.slice().sort((a, b) => b.ts - a.ts).slice(0, 25);
+      if (recent.length === 0) {
+        feedEl.innerHTML = '<p class="empty-state">No activity recorded yet.</p>';
+      } else {
+        const typeIcon = { county: '🏔️', city: '🏘️', event: '📅', discussion: '💬' };
+        feedEl.innerHTML = recent.map(v => {
+          const d = new Date(v.ts);
+          const timeStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return `
+            <div class="analytics-feed-row">
+              <span class="analytics-feed-icon">${typeIcon[v.type] || '📄'}</span>
+              <span class="analytics-feed-name">${v.name}</span>
+              <span class="analytics-feed-type">${v.type}</span>
+              <span class="analytics-feed-time">${timeStr}</span>
+            </div>
+          `;
+        }).join('');
+      }
+    }
   }
 
   buildCountySlugMap() {
@@ -1764,11 +2197,22 @@ class MTApp {
     const descriptionEl = document.getElementById('county-page-description');
     const metaEl = document.getElementById('county-meta');
     const citiesEl = document.getElementById('county-cities-list');
+    const heroContainer = document.getElementById('county-hero');
+    const heroImage = document.getElementById('county-hero-image');
 
     if (!titleEl || !descriptionEl || !metaEl || !citiesEl) return;
 
     const countyData = COUNTY_DATA[fipsCode] || {};
     const description = countyData.description || `Explore ${countyName} and discover local history, landmarks, and activities.`;
+
+    // Update hero image
+    if (countyData.heroImage && heroContainer && heroImage) {
+      heroImage.src = countyData.heroImage;
+      heroImage.alt = `${countyName} landscape`;
+      heroContainer.style.display = 'block';
+    } else if (heroContainer) {
+      heroContainer.style.display = 'none';
+    }
 
     titleEl.textContent = countyName;
     descriptionEl.textContent = description;
@@ -1830,6 +2274,7 @@ class MTApp {
     this.showCountyPage();
     this.setBreadcrumb({ countyName });
     this.setHash(`/montana/${this.slugify(countyName)}`);
+    this.trackPageView('county', fipsCode, countyName);
   }
 
   handleRouteFromHash() {
@@ -2004,6 +2449,7 @@ class MTApp {
     document.getElementById('edit-city-website').value = cityData.website || '';
     document.getElementById('edit-city-activities').value = cityData.activities || '';
     document.getElementById('edit-city-highlights').value = cityData.highlights || '';
+    document.getElementById('edit-city-hero-image').value = cityData.heroImage || '';
 
     document.getElementById('city-edit-modal').style.display = 'flex';
   }
@@ -2016,43 +2462,55 @@ class MTApp {
   async handleCityUpdate(e) {
     e.preventDefault();
 
-    const fips = document.getElementById('edit-city-fips').value;
-    const slug = document.getElementById('edit-city-slug').value;
-    const cityData = {
-      description: document.getElementById('edit-city-description').value,
-      population: document.getElementById('edit-city-population').value,
-      elevation: document.getElementById('edit-city-elevation').value,
-      website: document.getElementById('edit-city-website').value,
-      activities: document.getElementById('edit-city-activities').value,
-      highlights: document.getElementById('edit-city-highlights').value
-    };
+    const btn = e.target.querySelector('button[type="submit"]');
+    const origText = btn ? btn.textContent : '';
+    if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
 
-    const key = `${fips}_${slug}`;
+    try {
+      const fips = document.getElementById('edit-city-fips').value;
+      const slug = document.getElementById('edit-city-slug').value;
+      const cityData = {
+        description: document.getElementById('edit-city-description').value,
+        population: document.getElementById('edit-city-population').value,
+        elevation: document.getElementById('edit-city-elevation').value,
+        website: document.getElementById('edit-city-website').value,
+        activities: document.getElementById('edit-city-activities').value,
+        highlights: document.getElementById('edit-city-highlights').value,
+        heroImage: document.getElementById('edit-city-hero-image').value
+      };
 
-    // Save via data service
-    if (this.ds) {
-      await this.ds.saveCityData(fips, slug, cityData);
-    }
-    // Update in-memory
-    CITY_DATA[key] = cityData;
+      const key = `${fips}_${slug}`;
 
-    // Refresh city list
-    if (this._currentCityListFips) {
-      this.loadCityList(this._currentCityListFips);
-    }
-
-    // Close modal
-    this.closeCityEditModal();
-
-    // Refresh city page if we're viewing this city
-    if (this.currentCity && this.currentCounty && this.currentCounty.fips === fips) {
-      const currentSlug = this.slugify(this.currentCity.name);
-      if (currentSlug === slug) {
-        this.renderCityPage(this.currentCity.name, this.currentCounty.name, fips);
+      // Save via data service
+      if (this.ds) {
+        await this.ds.saveCityData(fips, slug, cityData);
       }
-    }
+      // Update in-memory
+      CITY_DATA[key] = cityData;
 
-    alert('✅ City information updated successfully!');
+      // Refresh city list
+      if (this._currentCityListFips) {
+        this.loadCityList(this._currentCityListFips);
+      }
+
+      // Close modal
+      this.closeCityEditModal();
+
+      // Refresh city page if we're viewing this city
+      if (this.currentCity && this.currentCounty && this.currentCounty.fips === fips) {
+        const currentSlug = this.slugify(this.currentCity.name);
+        if (currentSlug === slug) {
+          this.renderCityPage(this.currentCity.name, this.currentCounty.name, fips);
+        }
+      }
+
+      this.showNotification('✅ City information updated successfully!', 'success');
+    } catch (err) {
+      console.error('City save error:', err);
+      this.showNotification(`❌ Save failed: ${err.message || err}`, 'error');
+    } finally {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }
   }
 
   checkBusinessExpiration() {
@@ -2069,6 +2527,55 @@ class MTApp {
   
   initializeLayerData() {
     return {
+      'hiking-trails': {
+        name: 'Hiking Trails (USFS)',
+        tileUrl: 'https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_TrailNFS_01/MapServer/tile/{z}/{y}/{x}',
+        tileAttribution: '<a href="https://www.fs.usda.gov/" target="_blank">USDA Forest Service</a>',
+        tileOpacity: 0.85,
+        minZoom: 8,
+        // Fallback point markers for major trailheads shown at low zoom
+        features: [
+          { name: 'Highline Trail (Glacier NP)', lat: 48.6974, lng: -113.7180 },
+          { name: 'Beartooth Pass Trail', lat: 45.1633, lng: -109.5500 },
+          { name: 'Grinnell Glacier Trail', lat: 48.7597, lng: -113.7179 },
+          { name: 'Lamar Valley Trail', lat: 44.8974, lng: -110.3342 },
+          { name: 'Rattlesnake Wilderness', lat: 46.9307, lng: -114.0121 },
+          { name: 'Spanish Peaks Trail', lat: 45.3222, lng: -111.3167 },
+          { name: 'Pine Creek Lake Trail', lat: 45.5061, lng: -110.6519 },
+          { name: 'Jewel Basin', lat: 48.1678, lng: -113.8833 },
+          { name: 'Big Horn Lake Trail', lat: 48.0833, lng: -113.2500 },
+          { name: 'Lolo Pass Trails', lat: 46.6333, lng: -114.5833 }
+        ],
+        color: '#2E7D32',
+        fact: 'Montana has over 15,000 miles of hiking trails on National Forest land alone — more than any other state in the lower 48!'
+      },
+      'fishing-access': {
+        name: 'Fishing Access Sites (MT FWP)',
+        features: [
+          { name: 'Kim Williams Trail (Missoula)', lat: 46.8680, lng: -113.9540 },
+          { name: 'Milltown Reservoir (Clark Fork)', lat: 46.8833, lng: -113.8583 },
+          { name: 'Warm Springs Ponds', lat: 46.1833, lng: -112.8167 },
+          { name: 'Nelson Reservoir (Phillips Co.)', lat: 48.3500, lng: -107.6167 },
+          { name: 'Canyon Ferry Lake', lat: 46.6667, lng: -111.7333 },
+          { name: 'Havre Pond (Milk River)', lat: 48.5461, lng: -109.6797 },
+          { name: 'Bighorn River — Afterbay', lat: 45.5028, lng: -107.4167 },
+          { name: 'Missouri River — Cascade', lat: 47.2667, lng: -111.7000 },
+          { name: 'Yellowstone River — Springdale', lat: 46.1333, lng: -109.7833 },
+          { name: 'Flathead River — Buffalo Bridge', lat: 47.9333, lng: -114.0167 },
+          { name: 'Rock Creek (Missoula Co.)', lat: 46.5500, lng: -113.4833 },
+          { name: 'Madison River — Lyon Bridge', lat: 45.5306, lng: -111.5750 },
+          { name: 'Gallatin River — Red Cliff', lat: 45.4583, lng: -111.2083 },
+          { name: 'Smith River — Camp Baker', lat: 46.8333, lng: -110.8833 },
+          { name: 'Tongue River Reservoir', lat: 45.5000, lng: -106.6667 },
+          { name: 'Fort Peck Lake — Devils Creek', lat: 47.9500, lng: -107.9833 },
+          { name: 'Fresno Reservoir (Havre)', lat: 48.7333, lng: -110.1500 },
+          { name: 'Holter Lake', lat: 47.0000, lng: -111.7333 },
+          { name: 'Lake Koocanusa', lat: 48.8333, lng: -115.3167 },
+          { name: 'Swan Lake', lat: 47.8833, lng: -113.7167 }
+        ],
+        color: '#0277BD',
+        fact: 'MT FWP manages over 330 fishing access sites statewide — Montana is widely considered one of the top fly-fishing destinations in the world!'
+      },
       watersheds: {
         name: 'Watersheds',
         features: [
@@ -2254,11 +2761,103 @@ class MTApp {
   }
 
   initializeLayerController() {
-    // Layer toggle button
-    const layerToggleBtn = document.getElementById('layer-toggle-btn');
     const layerController = document.querySelector('.layer-controller');
+    const layerHeader = document.getElementById('layer-header');
+    const layerToggleBtn = document.getElementById('layer-toggle-btn');
+    const layerMinimizeBtn = document.getElementById('layer-minimize-btn');
     
-    if (layerToggleBtn && layerController) {
+    if (!layerController) return;
+    
+    // Restore saved position from localStorage
+    const savedPos = localStorage.getItem('layerControllerPosition');
+    if (savedPos) {
+      const pos = JSON.parse(savedPos);
+      layerController.style.top = pos.top;
+      layerController.style.right = pos.right;
+      layerController.style.left = 'auto';
+      layerController.style.bottom = 'auto';
+    }
+    
+    // Restore minimized state
+    const isMinimized = localStorage.getItem('layerControllerMinimized') === 'true';
+    if (isMinimized) {
+      layerController.classList.add('minimized');
+      layerMinimizeBtn.textContent = '+';
+      layerMinimizeBtn.title = 'Maximize';
+    }
+    
+    // Dragging functionality
+    let isDragging = false;
+    let dragStartX, dragStartY, startLeft, startTop;
+    
+    if (layerHeader) {
+      layerHeader.addEventListener('mousedown', (e) => {
+        // Don't drag if clicking buttons
+        if (e.target.closest('button')) return;
+        
+        isDragging = true;
+        layerController.classList.add('dragging');
+        
+        const rect = layerController.getBoundingClientRect();
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        
+        e.preventDefault();
+      });
+    }
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const deltaX = e.clientX - dragStartX;
+      const deltaY = e.clientY - dragStartY;
+      
+      let newLeft = startLeft + deltaX;
+      let newTop = startTop + deltaY;
+      
+      // Constrain to viewport
+      const rect = layerController.getBoundingClientRect();
+      const maxLeft = window.innerWidth - rect.width - 10;
+      const maxTop = window.innerHeight - rect.height - 10;
+      
+      newLeft = Math.max(10, Math.min(newLeft, maxLeft));
+      newTop = Math.max(10, Math.min(newTop, maxTop));
+      
+      layerController.style.left = newLeft + 'px';
+      layerController.style.top = newTop + 'px';
+      layerController.style.right = 'auto';
+      layerController.style.bottom = 'auto';
+    });
+    
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        layerController.classList.remove('dragging');
+        
+        // Save position to localStorage
+        const rect = layerController.getBoundingClientRect();
+        const rightPos = window.innerWidth - rect.right;
+        localStorage.setItem('layerControllerPosition', JSON.stringify({
+          top: layerController.style.top,
+          right: rightPos + 'px'
+        }));
+      }
+    });
+    
+    // Minimize/Maximize button
+    if (layerMinimizeBtn) {
+      layerMinimizeBtn.addEventListener('click', () => {
+        const isMinimized = layerController.classList.toggle('minimized');
+        layerMinimizeBtn.textContent = isMinimized ? '+' : '−';
+        layerMinimizeBtn.title = isMinimized ? 'Maximize' : 'Minimize';
+        localStorage.setItem('layerControllerMinimized', isMinimized);
+      });
+    }
+    
+    // Layer toggle button (collapse)
+    if (layerToggleBtn) {
       layerToggleBtn.addEventListener('click', () => {
         layerController.classList.toggle('collapsed');
       });
@@ -2281,9 +2880,36 @@ class MTApp {
   addLayer(layerName) {
     const layerInfo = this.layerData[layerName];
     if (!layerInfo || this.layers[layerName]) return;
-    
+
     const layerGroup = L.layerGroup();
-    
+
+    // External tile layer (e.g. USFS ArcGIS tile service)
+    if (layerInfo.tileUrl) {
+      const tile = L.tileLayer(layerInfo.tileUrl, {
+        attribution: layerInfo.tileAttribution || '',
+        opacity: layerInfo.tileOpacity !== undefined ? layerInfo.tileOpacity : 0.8,
+        minZoom: layerInfo.minZoom || 1,
+        maxZoom: 18
+      });
+      tile.addTo(layerGroup);
+      // Also show fallback trailhead markers at low zoom
+      if (layerInfo.features && layerInfo.features.length) {
+        layerInfo.features.forEach(feature => {
+          L.circleMarker([feature.lat, feature.lng], {
+            color: layerInfo.color,
+            fillColor: layerInfo.color,
+            fillOpacity: 0.85,
+            radius: 7,
+            weight: 2
+          }).bindPopup(`<strong>${feature.name}</strong><br><em>${layerInfo.name}</em>`).addTo(layerGroup);
+        });
+      }
+      layerGroup.addTo(this.map);
+      this.layers[layerName] = layerGroup;
+      this.updateHUD(layerInfo.fact, layerInfo.name);
+      return;
+    }
+
     layerInfo.features.forEach(feature => {
       if (feature.radius) {
         // Create circle for area features
@@ -2567,6 +3193,359 @@ class MTApp {
     } else {
       this.showNotification(result.error, 'error');
     }
+  }
+
+  // ============================================
+  // ============================================
+  // COMMUNITY EVENTS (public-facing)
+  // ============================================
+
+  showEventsPage() {
+    const eventsSection = document.getElementById('events-section');
+    const mapSection = document.getElementById('map-section');
+    const discussionSection = document.getElementById('discussion-section');
+    const awardsSection = document.getElementById('awards-page-section');
+    if (eventsSection) {
+      eventsSection.style.display = 'block';
+      if (mapSection) mapSection.style.display = 'none';
+      if (discussionSection) discussionSection.style.display = 'none';
+      if (awardsSection) awardsSection.style.display = 'none';
+      this._populateEventsCountyFilter();
+      this.loadPublicEvents();
+    }
+  }
+
+  closeEventsPage() {
+    const eventsSection = document.getElementById('events-section');
+    const mapSection = document.getElementById('map-section');
+    if (eventsSection) eventsSection.style.display = 'none';
+    if (mapSection) mapSection.style.display = 'block';
+  }
+
+  _countyNameMap() {
+    return {
+      '30001': 'Beaverhead',   '30003': 'Big Horn',      '30005': 'Blaine',
+      '30007': 'Broadwater',   '30009': 'Carbon',         '30011': 'Carter',
+      '30013': 'Cascade',      '30015': 'Chouteau',       '30017': 'Custer',
+      '30019': 'Daniels',      '30021': 'Dawson',         '30023': 'Deer Lodge',
+      '30025': 'Fallon',       '30027': 'Fergus',         '30029': 'Flathead',
+      '30031': 'Gallatin',     '30033': 'Garfield',       '30035': 'Glacier',
+      '30037': 'Golden Valley','30039': 'Granite',        '30041': 'Hill',
+      '30043': 'Jefferson',    '30045': 'Judith Basin',   '30047': 'Lake',
+      '30049': 'Lewis and Clark','30051': 'Liberty',      '30053': 'Lincoln',
+      '30055': 'McCone',       '30057': 'Madison',        '30059': 'Meagher',
+      '30061': 'Mineral',      '30063': 'Missoula',       '30065': 'Musselshell',
+      '30067': 'Park',         '30069': 'Petroleum',      '30071': 'Phillips',
+      '30073': 'Pondera',      '30075': 'Powder River',   '30077': 'Powell',
+      '30079': 'Prairie',      '30081': 'Ravalli',        '30083': 'Richland',
+      '30085': 'Roosevelt',    '30087': 'Rosebud',        '30089': 'Sanders',
+      '30091': 'Sheridan',     '30093': 'Silver Bow',     '30095': 'Stillwater',
+      '30097': 'Sweet Grass',  '30099': 'Teton',          '30101': 'Toole',
+      '30103': 'Treasure',     '30105': 'Valley',         '30107': 'Wheatland',
+      '30109': 'Wibaux',       '30111': 'Yellowstone'
+    };
+  }
+
+  _populateEventsCountyFilter() {
+    const sel = document.getElementById('events-filter-county');
+    if (!sel || sel.options.length > 1) return; // already populated
+    const names = this._countyNameMap();
+    Object.entries(names)
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .forEach(([fips, name]) => {
+        const opt = document.createElement('option');
+        opt.value = fips;
+        opt.textContent = name + ' County';
+        sel.appendChild(opt);
+      });
+    // Also populate user-event county dropdown
+    const ueCounty = document.getElementById('ue-county');
+    if (ueCounty && ueCounty.options.length <= 1) {
+      Object.entries(names)
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([fips, name]) => {
+          const opt = document.createElement('option');
+          opt.value = fips;
+          opt.textContent = name + ' County';
+          ueCounty.appendChild(opt);
+        });
+    }
+  }
+
+  async loadPublicEvents() {
+    const grid = document.getElementById('public-events-grid');
+    if (!grid) return;
+    grid.innerHTML = '<div class="events-loading">Loading events...</div>';
+    try {
+      const events = await this.ds.getAllEvents();
+      // Sort: upcoming first, then by featured
+      const now = new Date();
+      events.sort((a, b) => {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        const da = a.startDate ? new Date(a.startDate) : new Date(8640000000000000);
+        const db2 = b.startDate ? new Date(b.startDate) : new Date(8640000000000000);
+        return da - db2;
+      });
+      this._eventsAllCache = events;
+      this.renderPublicEvents(events);
+    } catch (err) {
+      console.error('Failed to load events:', err);
+      grid.innerHTML = '<div class="events-loading">Could not load events. Please try again.</div>';
+    }
+  }
+
+  filterPublicEvents() {
+    const search = (document.getElementById('events-search')?.value || '').toLowerCase();
+    const type = document.getElementById('events-filter-type')?.value || '';
+    const county = document.getElementById('events-filter-county')?.value || '';
+    let filtered = this._eventsAllCache;
+    if (search) filtered = filtered.filter(e =>
+      e.name?.toLowerCase().includes(search) ||
+      e.description?.toLowerCase().includes(search) ||
+      e.address?.toLowerCase().includes(search)
+    );
+    if (type) filtered = filtered.filter(e => e.type === type);
+    if (county) filtered = filtered.filter(e => e.countyFips === county);
+    this.renderPublicEvents(filtered);
+  }
+
+  renderPublicEvents(events) {
+    const grid = document.getElementById('public-events-grid');
+    if (!grid) return;
+    if (!events || events.length === 0) {
+      grid.innerHTML = '<p class="events-loading">No events found. Be the first to add one!</p>';
+      return;
+    }
+    const typeLabels = {
+      community: '🎉 Community', outdoor: '🏔️ Outdoor', arts: '🎨 Arts & Culture',
+      business: '🏪 Business', historical: '📜 Historical', sports: '⚽ Sports',
+      food: '🍽️ Food & Drink', other: '🗓️ Other'
+    };
+    const countyNames = this._countyNameMap();
+    grid.innerHTML = events.map(ev => {
+      const typeLabel = typeLabels[ev.type] || ev.type || 'Event';
+      const county = countyNames[ev.countyFips] ? countyNames[ev.countyFips] + ' County' : (ev.countyFips || '');
+      const location = [county, ev.citySlug].filter(Boolean).join(' — ');
+      const startStr = ev.startDate ? new Date(ev.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      const endStr = ev.endDate && ev.endDate !== ev.startDate ? ' – ' + new Date(ev.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      const timeStr = ev.startTime ? ' at ' + ev.startTime : '';
+      const dateDisplay = startStr ? `📅 ${startStr}${endStr}${timeStr}` : '';
+      const desc = this.escapeHtml(ev.description || '').substring(0, 160) + ((ev.description || '').length > 160 ? '...' : '');
+      const posterName = this.escapeHtml(ev.submittedBy || ev.createdBy || 'Community Member');
+      return `
+        <div class="event-card" onclick="mtApp.openEventDetailModal('${ev.id}')">
+          <div class="event-card-header">
+            <div class="event-card-type-row">
+              <span class="event-type-chip">${typeLabel}</span>
+              ${ev.featured ? '<span class="event-featured-badge">⭐ Featured</span>' : ''}
+            </div>
+            <h3 class="event-card-title">${this.escapeHtml(ev.name)}</h3>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              ${dateDisplay ? `<span>${dateDisplay}</span>` : ''}
+              ${location ? `<span>📍 ${location}</span>` : ''}
+              ${ev.price ? `<span>💰 ${this.escapeHtml(ev.price)}</span>` : ''}
+            </div>
+            <p class="event-card-description">${desc}</p>
+          </div>
+          <div class="event-card-footer">
+            <span>Posted by ${posterName}</span>
+            <button class="event-card-view-btn" onclick="event.stopPropagation(); mtApp.openEventDetailModal('${ev.id}')">View Details</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ─── Add Event Modal ───
+  showUserAddEventModal() {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    if (!currentUser.email && !currentUser.displayName) {
+      this.showNotification('Please sign in to add an event.', 'error');
+      this.showAuthModal('signin');
+      return;
+    }
+    this._populateEventsCountyFilter();
+    // Set min date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('ue-start').min = today;
+    document.getElementById('ue-end').min = today;
+    // Clear form
+    document.getElementById('user-event-form').reset();
+    document.getElementById('user-event-error').style.display = 'none';
+    document.getElementById('user-event-modal').style.display = 'flex';
+  }
+
+  closeUserAddEventModal() {
+    document.getElementById('user-event-modal').style.display = 'none';
+  }
+
+  async handleUserEventSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('user-event-submit-btn');
+    const errEl = document.getElementById('user-event-error');
+    errEl.style.display = 'none';
+
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const submitterName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Community Member';
+
+    const name = document.getElementById('ue-name').value.trim();
+    const type = document.getElementById('ue-type').value;
+    const countyFips = document.getElementById('ue-county').value;
+    const city = document.getElementById('ue-city').value.trim();
+    const description = document.getElementById('ue-description').value.trim();
+    const startDate = document.getElementById('ue-start').value;
+    const endDate = document.getElementById('ue-end').value;
+    const startTime = document.getElementById('ue-start-time').value;
+    const endTime = document.getElementById('ue-end-time').value;
+    const address = document.getElementById('ue-address').value.trim();
+    const website = document.getElementById('ue-website').value.trim();
+    const price = document.getElementById('ue-price').value.trim();
+    const contactEmail = document.getElementById('ue-contact-email').value.trim();
+
+    if (!name || !type || !countyFips || !description || !startDate) {
+      errEl.textContent = 'Please fill in all required fields.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.textContent = 'Submitting...';
+    btn.disabled = true;
+
+    try {
+      const eventData = {
+        id: `evt_${Date.now()}`,
+        name,
+        type,
+        countyFips,
+        citySlug: city || null,
+        description,
+        startDate,
+        endDate: endDate || null,
+        startTime: startTime || null,
+        endTime: endTime || null,
+        address: address || null,
+        website: website || null,
+        price: price || null,
+        contactEmail: contactEmail || null,
+        submittedBy: submitterName,
+        submittedByUid: currentUser.uid || null,
+        isActive: true,
+        featured: false,
+        createdAt: new Date().toISOString()
+      };
+
+      await this.ds.saveEvent(eventData);
+
+      // Refresh global cache
+      const allEvents = await this.ds.getAllEvents();
+      EVENTS_DATA.length = 0;
+      EVENTS_DATA.push(...allEvents);
+      this._eventsAllCache = allEvents;
+
+      this.closeUserAddEventModal();
+      this.showNotification('🎉 Event submitted! It\'s now live for everyone to see.', 'success');
+      this.filterPublicEvents();
+
+      // Award points to user for contributing an event
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      if (!members[submitterName]) {
+        members[submitterName] = { name: submitterName, totalPoints: 0, postCount: 0, awards: [] };
+      }
+      members[submitterName].totalPoints = (members[submitterName].totalPoints || 0) + 20;
+      localStorage.setItem('memberProfiles', JSON.stringify(members));
+      window.MEMBER_PROFILES = members;
+      if (currentUser.uid) {
+        this.ds.saveMemberProfile(currentUser.uid, { ...members[submitterName], uid: currentUser.uid })
+          .catch(() => {});
+      }
+    } catch (err) {
+      console.error('Event submit error:', err);
+      errEl.textContent = 'Failed to save event. Please try again.';
+      errEl.style.display = 'block';
+    } finally {
+      btn.textContent = 'Submit Event';
+      btn.disabled = false;
+    }
+  }
+
+  // ─── Event Detail Modal ───
+  async openEventDetailModal(eventId) {
+    const modal = document.getElementById('event-detail-modal');
+    if (!modal) return;
+
+    // Find event from cache or fetch
+    let ev = this._eventsAllCache.find(e => e.id === eventId);
+    if (!ev) {
+      const all = await this.ds.getAllEvents();
+      ev = all.find(e => e.id === eventId);
+    }
+    if (!ev) return;
+    this.trackPageView('event', ev.id, ev.name);
+
+    const countyNames = this._countyNameMap();
+    const typeLabels = {
+      community: '🎉 Community', outdoor: '🏔️ Outdoor', arts: '🎨 Arts & Culture',
+      business: '🏪 Business', historical: '📜 Historical', sports: '⚽ Sports',
+      food: '🍽️ Food & Drink', other: '🗓️ Other'
+    };
+
+    document.getElementById('event-detail-title').textContent = ev.name;
+    document.getElementById('event-detail-type-chip').textContent = typeLabels[ev.type] || ev.type || 'Event';
+    document.getElementById('event-detail-county').textContent = countyNames[ev.countyFips]
+      ? countyNames[ev.countyFips] + ' County' + (ev.citySlug ? ` — ${ev.citySlug}` : '')
+      : '';
+
+    // Dates
+    const startStr = ev.startDate ? new Date(ev.startDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    const endStr = ev.endDate && ev.endDate !== ev.startDate ? ' to ' + new Date(ev.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    const timeStr = ev.startTime ? ` at ${ev.startTime}${ev.endTime ? ' – ' + ev.endTime : ''}` : '';
+    document.getElementById('event-detail-dates').textContent = startStr ? `📅 ${startStr}${endStr}${timeStr}` : '';
+    document.getElementById('event-detail-address').textContent = ev.address ? `📍 ${ev.address}` : '';
+    document.getElementById('event-detail-description').textContent = ev.description || '';
+
+    // Meta
+    const metaParts = [];
+    if (ev.price) metaParts.push(`💰 ${this.escapeHtml(ev.price)}`);
+    if (ev.website) metaParts.push(`🔗 <a href="${this.escapeHtml(ev.website)}" target="_blank" rel="noopener">Visit Website / Tickets</a>`);
+    if (ev.contactEmail) metaParts.push(`📧 ${this.escapeHtml(ev.contactEmail)}`);
+    if (ev.submittedBy) metaParts.push(`👤 Posted by ${this.escapeHtml(ev.submittedBy)}`);
+    document.getElementById('event-detail-meta').innerHTML = metaParts.join('<br>');
+
+    // Wire share buttons
+    this._currentShareEvent = ev;
+    const shareUrl = `${window.location.origin}${window.location.pathname}#event-${ev.id}`;
+    const shareText = encodeURIComponent(`📅 ${ev.name} – ${startStr}${ev.address ? ' at ' + ev.address : ''} | Montana Community Events`);
+    const shareUrlEnc = encodeURIComponent(shareUrl);
+
+    document.getElementById('share-facebook').onclick = () =>
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrlEnc}`, '_blank', 'width=600,height=400');
+    document.getElementById('share-twitter').onclick = () =>
+      window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrlEnc}`, '_blank', 'width=600,height=400');
+    document.getElementById('share-reddit').onclick = () =>
+      window.open(`https://www.reddit.com/submit?url=${shareUrlEnc}&title=${shareText}`, '_blank', 'width=700,height=500');
+    document.getElementById('share-email').onclick = () => {
+      const subject = encodeURIComponent(`Check out this event: ${ev.name}`);
+      const body = encodeURIComponent(`Hey! I thought you'd be interested in this event:\n\n${ev.name}\n${startStr}${ev.address ? '\n' + ev.address : ''}\n\n${ev.description || ''}\n\nDetails: ${shareUrl}`);
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    };
+    document.getElementById('share-copy').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        this.showNotification('🔗 Link copied to clipboard!', 'success');
+      } catch {
+        this.showNotification('Could not copy. URL: ' + shareUrl, 'error');
+      }
+    };
+
+    modal.style.display = 'flex';
+  }
+
+  closeEventDetailModal() {
+    const modal = document.getElementById('event-detail-modal');
+    if (modal) modal.style.display = 'none';
   }
 
   // ============================================
@@ -3019,8 +3998,22 @@ class MTApp {
     document.getElementById('profile-close-btn')?.addEventListener('click', () => this.closeProfileModal());
     document.getElementById('user-signout-btn')?.addEventListener('click', () => this.handleSignOut());
 
-    // Profile settings form
+    // Profile tab navigation
+    document.querySelectorAll('.profile-nav-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this.switchProfileTab(e.currentTarget.dataset.profileTab));
+    });
+
+    // Profile settings form (Edit Profile tab)
     document.getElementById('profile-settings-form')?.addEventListener('submit', (e) => this.handleProfileUpdate(e));
+
+    // Privacy & Notifications form
+    document.getElementById('profile-privacy-form')?.addEventListener('submit', (e) => this.handlePrivacyUpdate(e));
+
+    // User password change form
+    document.getElementById('user-password-form')?.addEventListener('submit', (e) => this.handleUserPasswordChange(e));
+
+    // Sign out from profile page
+    document.getElementById('profile-signout-btn')?.addEventListener('click', () => this.handleSignOut());
 
     // Profile avatar picker
     document.querySelectorAll('#profile-avatar-picker .avatar-option').forEach(opt => {
@@ -3031,9 +4024,28 @@ class MTApp {
       });
     });
 
+    // Bio character counter
+    document.getElementById('profile-edit-bio')?.addEventListener('input', (e) => {
+      const counter = document.getElementById('bio-char-count');
+      if (counter) counter.textContent = e.target.value.length;
+    });
+
     // Awards page
     document.getElementById('awards-btn')?.addEventListener('click', () => this.showAwardsPage());
     document.getElementById('awards-page-close-btn')?.addEventListener('click', () => this.closeAwardsPage());
+
+    // Community Events page
+    document.getElementById('events-nav-btn')?.addEventListener('click', () => this.showEventsPage());
+    document.getElementById('events-close-btn')?.addEventListener('click', () => this.closeEventsPage());
+    document.getElementById('events-add-btn')?.addEventListener('click', () => this.showUserAddEventModal());
+    document.getElementById('user-event-modal-close')?.addEventListener('click', () => this.closeUserAddEventModal());
+    document.getElementById('user-event-cancel')?.addEventListener('click', () => this.closeUserAddEventModal());
+    document.getElementById('user-event-form')?.addEventListener('submit', (e) => this.handleUserEventSubmit(e));
+    document.getElementById('event-detail-close')?.addEventListener('click', () => this.closeEventDetailModal());
+    ['events-search', 'events-filter-type', 'events-filter-county'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', () => this.filterPublicEvents());
+      document.getElementById(id)?.addEventListener('change', () => this.filterPublicEvents());
+    });
 
     // Auth state listener
     if (this.ds && this.ds.onAuthChange) {
@@ -3208,50 +4220,111 @@ class MTApp {
         document.getElementById('user-avatar-emoji').textContent = avatar;
       }
       this.currentUser = { email: user.email, displayName: user.displayName || displayName, uid: user.uid };
+      // Show "Add Event" button when user is logged in
+      const addEventBtn = document.getElementById('events-add-btn');
+      if (addEventBtn) addEventBtn.style.display = 'inline-flex';
+      // Sync sidebar
+      const sidebarGuest = document.getElementById('sidebar-auth-guest');
+      const sidebarUser  = document.getElementById('sidebar-auth-user');
+      if (sidebarGuest) sidebarGuest.style.display = 'none';
+      if (sidebarUser)  sidebarUser.style.display  = 'block';
+      const uDisplayName = user.displayName || user.email?.split('@')[0] || 'User';
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      const mem = Object.values(members).find(m => m.email === user.email || m.name === uDisplayName);
+      const sAvatar = document.getElementById('sidebar-user-avatar');
+      const sName   = document.getElementById('sidebar-user-name');
+      const sEmail  = document.getElementById('sidebar-user-email');
+      if (sAvatar) sAvatar.textContent = mem?.avatarEmoji || '👤';
+      if (sName)   sName.textContent   = uDisplayName;
+      if (sEmail)  sEmail.textContent  = user.email || '';
     } else {
       // Show auth nav
       if (authNav) authNav.style.display = 'flex';
       if (userNav) userNav.style.display = 'none';
       this.currentUser = null;
+      const addEventBtn = document.getElementById('events-add-btn');
+      if (addEventBtn) addEventBtn.style.display = 'none';
+      // Sync sidebar
+      const sidebarGuest = document.getElementById('sidebar-auth-guest');
+      const sidebarUser  = document.getElementById('sidebar-auth-user');
+      if (sidebarGuest) sidebarGuest.style.display = 'block';
+      if (sidebarUser)  sidebarUser.style.display  = 'none';
     }
+  }
+
+  switchProfileTab(tabName) {
+    // Update nav buttons
+    document.querySelectorAll('.profile-nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.profileTab === tabName);
+    });
+    // Show/hide panels
+    document.querySelectorAll('.profile-tab-panel').forEach(panel => {
+      panel.style.display = panel.id === `profile-tab-${tabName}` ? 'flex' : 'none';
+    });
   }
 
   showProfileModal() {
     const profileSection = document.getElementById('profile-section');
     const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
     const displayName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Member';
-    
     const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
-    const member = members[displayName] || Object.values(members).find(m => m.email === currentUser.email);
+    const member = members[displayName] || Object.values(members).find(m => m.email === currentUser.email) || {};
 
-    if (profileSection && member) {
-      profileSection.style.display = 'block';
-      
-      // Load profile data
-      document.getElementById('profile-avatar-display').textContent = member.avatarEmoji || '👤';
-      document.getElementById('profile-display-name').textContent = member.name || displayName;
-      document.getElementById('profile-total-points').textContent = member.totalPoints || 0;
-      document.getElementById('profile-post-count').textContent = member.postCount || 0;
-      document.getElementById('profile-award-count').textContent = (member.awards || []).length;
+    if (!profileSection) return;
+    profileSection.style.display = 'block';
 
-      // Update rank
-      document.getElementById('profile-rank').textContent = this.getMemberRank(displayName);
+    // Always start on overview tab
+    this.switchProfileTab('overview');
 
-      // Load form
-      document.getElementById('profile-edit-name').value = member.name || '';
-      document.getElementById('profile-edit-bio').value = member.bio || '';
-      document.getElementById('profile-edit-avatar').value = member.avatarEmoji || '👤';
-      document.getElementById('profile-show-leaderboard').checked = member.settings?.showOnLeaderboard ?? true;
-      document.getElementById('profile-public-profile').checked = member.settings?.publicProfile ?? true;
+    // ── Sidebar overview ──
+    const avatar = member.avatarEmoji || '👤';
+    document.getElementById('profile-avatar-display').textContent = avatar;
+    document.getElementById('profile-display-name').textContent = member.name || displayName;
+    document.getElementById('profile-email-display').textContent = currentUser.email || '';
+    document.getElementById('profile-rank').textContent = this.getMemberRank(displayName);
 
-      // Update avatar picker
-      document.querySelectorAll('#profile-avatar-picker .avatar-option').forEach(opt => {
-        opt.classList.toggle('selected', opt.dataset.emoji === (member.avatarEmoji || '👤'));
-      });
+    const points = member.totalPoints || 0;
+    const posts  = member.postCount  || 0;
+    const awards = (member.awards   || []).length;
+    document.getElementById('profile-total-points').textContent = points;
+    document.getElementById('profile-post-count').textContent   = posts;
+    document.getElementById('profile-award-count').textContent  = awards;
 
-      // Render awards
-      this.renderMemberAwards(member);
-    }
+    // ── Overview tab ──
+    document.getElementById('activity-posts').textContent  = posts;
+    document.getElementById('activity-points').textContent = points;
+    document.getElementById('activity-awards').textContent = awards;
+    this.renderMemberAwards(member);
+
+    // ── Edit Profile tab ──
+    document.getElementById('profile-edit-name').value   = member.name || displayName;
+    document.getElementById('profile-edit-bio').value    = member.bio  || '';
+    document.getElementById('profile-edit-avatar').value = avatar;
+    const bioCounter = document.getElementById('bio-char-count');
+    if (bioCounter) bioCounter.textContent = (member.bio || '').length;
+    document.querySelectorAll('#profile-avatar-picker .avatar-option').forEach(opt => {
+      opt.classList.toggle('selected', opt.dataset.emoji === avatar);
+    });
+
+    // ── Preferences tab ──
+    document.getElementById('profile-show-leaderboard').checked    = member.settings?.showOnLeaderboard    ?? true;
+    document.getElementById('profile-public-profile').checked      = member.settings?.publicProfile        ?? true;
+    document.getElementById('profile-email-notifications').checked = member.settings?.emailNotifications   ?? true;
+
+    // ── Security tab ──
+    document.getElementById('profile-account-email').textContent  = currentUser.email || '—';
+    document.getElementById('profile-member-since').textContent   = member.joinedAt
+      ? new Date(member.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : 'Montana Explorer Member';
+    document.getElementById('profile-account-posts').textContent  = posts;
+
+    // Reset password form
+    const pwForm = document.getElementById('user-password-form');
+    if (pwForm) pwForm.reset();
+    ['user-password-error', 'user-password-success'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
   }
 
   closeProfileModal() {
@@ -3261,41 +4334,139 @@ class MTApp {
 
   async handleProfileUpdate(e) {
     e.preventDefault();
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    const displayName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Member';
-    const newName = document.getElementById('profile-edit-name').value.trim() || displayName;
-    const bio = document.getElementById('profile-edit-bio').value.trim();
-    const avatar = document.getElementById('profile-edit-avatar').value;
-    const showLeaderboard = document.getElementById('profile-show-leaderboard').checked;
-    const publicProfile = document.getElementById('profile-public-profile').checked;
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
 
-    const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
-    const oldKey = Object.keys(members).find(k => members[k].email === currentUser.email);
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const displayName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Member';
+      const newName = document.getElementById('profile-edit-name').value.trim() || displayName;
+      const bio    = document.getElementById('profile-edit-bio').value.trim();
+      const avatar = document.getElementById('profile-edit-avatar').value;
 
-    if (oldKey && oldKey !== newName) {
-      delete members[oldKey];
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      const oldKey  = Object.keys(members).find(k => members[k].email === currentUser.email) || displayName;
+
+      const existing = members[oldKey] || {};
+      if (oldKey !== newName) delete members[oldKey];
+
+      members[newName] = {
+        ...existing,
+        name: newName,
+        bio,
+        avatarEmoji: avatar,
+        email: currentUser.email,
+        settings: {
+          showOnLeaderboard:  existing.settings?.showOnLeaderboard  ?? true,
+          publicProfile:      existing.settings?.publicProfile      ?? true,
+          emailNotifications: existing.settings?.emailNotifications ?? true
+        }
+      };
+
+      localStorage.setItem('memberProfiles', JSON.stringify(members));
+
+      // Update Firebase if connected
+      if (this.ds && this.ds.isFirebase && this.ds.isFirebase()) {
+        try {
+          const { auth } = window._firebaseInternals || {};
+          if (auth && auth.currentUser) {
+            await auth.currentUser.updateProfile({ displayName: newName });
+          }
+        } catch (_) { /* non-critical */ }
+      }
+
+      currentUser.displayName = newName;
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+      this.updateAuthUI(currentUser);
+      // Refresh sidebar
+      document.getElementById('profile-display-name').textContent = newName;
+      document.getElementById('profile-avatar-display').textContent = avatar;
+
+      this.showNotification('✅ Profile updated!', 'success');
+    } catch (err) {
+      this.showNotification(`❌ ${err.message || 'Save failed'}`, 'error');
+    } finally {
+      if (btn) { btn.textContent = 'Save Profile'; btn.disabled = false; }
+    }
+  }
+
+  async handlePrivacyUpdate(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const displayName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Member';
+      const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
+      const key    = Object.keys(members).find(k => members[k].email === currentUser.email) || displayName;
+
+      if (!members[key]) members[key] = { name: displayName, email: currentUser.email };
+
+      members[key].settings = {
+        showOnLeaderboard:  document.getElementById('profile-show-leaderboard').checked,
+        publicProfile:      document.getElementById('profile-public-profile').checked,
+        emailNotifications: document.getElementById('profile-email-notifications').checked
+      };
+
+      localStorage.setItem('memberProfiles', JSON.stringify(members));
+      this.showNotification('✅ Preferences saved!', 'success');
+    } catch (err) {
+      this.showNotification(`❌ ${err.message || 'Save failed'}`, 'error');
+    } finally {
+      if (btn) { btn.textContent = 'Save Preferences'; btn.disabled = false; }
+    }
+  }
+
+  async handleUserPasswordChange(e) {
+    e.preventDefault();
+    const errEl  = document.getElementById('user-password-error');
+    const sucEl  = document.getElementById('user-password-success');
+    const btn    = e.target.querySelector('button[type="submit"]');
+    [errEl, sucEl].forEach(el => el && (el.style.display = 'none'));
+
+    const current  = document.getElementById('user-current-password').value;
+    const newPw    = document.getElementById('user-new-password').value;
+    const confirm  = document.getElementById('user-confirm-password').value;
+
+    if (!current || !newPw || !confirm) {
+      if (errEl) { errEl.textContent = 'Please fill in all password fields.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (newPw !== confirm) {
+      if (errEl) { errEl.textContent = 'New passwords do not match.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (newPw.length < 6) {
+      if (errEl) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; }
+      return;
     }
 
-    members[newName] = {
-      ...members[newName],
-      name: newName,
-      bio: bio,
-      avatarEmoji: avatar,
-      settings: {
-        showOnLeaderboard: showLeaderboard,
-        publicProfile: publicProfile,
-        emailNotifications: members[newName]?.settings?.emailNotifications ?? true
+    if (btn) { btn.textContent = 'Updating...'; btn.disabled = true; }
+
+    try {
+      if (this.ds && this.ds.isFirebase && this.ds.isFirebase()) {
+        // Firebase: re-authenticate then update
+        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        const result = await this.ds.login(currentUser.email, current);
+        if (!result.success) throw new Error('Current password is incorrect.');
+        const pwResult = await this.ds.changePassword(newPw);
+        if (!pwResult.success) throw new Error(pwResult.error);
+      } else {
+        // localStorage fallback
+        const storedPw = localStorage.getItem('adminPassword') || 'admin123';
+        if (current !== storedPw) throw new Error('Current password is incorrect.');
+        localStorage.setItem('adminPassword', newPw);
       }
-    };
 
-    localStorage.setItem('memberProfiles', JSON.stringify(members));
-
-    // Update current user
-    currentUser.displayName = newName;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
-    this.showNotification('✅ Profile updated successfully!', 'success');
-    this.updateAuthUI(currentUser);
+      e.target.reset();
+      if (sucEl) { sucEl.textContent = '✅ Password updated successfully!'; sucEl.style.display = 'block'; }
+    } catch (err) {
+      if (errEl) { errEl.textContent = `❌ ${err.message}`; errEl.style.display = 'block'; }
+    } finally {
+      if (btn) { btn.textContent = 'Update Password'; btn.disabled = false; }
+    }
   }
 
   renderMemberAwards(member) {
@@ -3513,6 +4684,290 @@ class MTApp {
       document.getElementById('grant-award-btn').disabled = true;
     } else {
       this.showNotification(result.error || 'Failed to grant award', 'error');
+    }
+  }
+
+  // ===== MARKETPLACE FUNCTIONS =====
+
+  showMarketplace() {
+    const currentUser = this.ds?.getCurrentUser();
+    const marketplaceSection = document.getElementById('marketplace-section');
+    const marketplaceAuthRequired = document.getElementById('marketplace-auth-required');
+    const marketplaceContent = document.getElementById('marketplace-content');
+    const marketplacePostBtn = document.getElementById('marketplace-post-btn');
+    const mapSection = document.getElementById('map-section');
+    const infoSection = document.getElementById('info-section');
+    const directorySection = document.getElementById('directory-section');
+    const countyPage = document.getElementById('county-page');
+    const cityPage = document.getElementById('city-page');
+    const adminSection = document.getElementById('admin-section');
+
+    // Hide all other sections
+    if (mapSection) mapSection.style.display = 'none';
+    if (infoSection) infoSection.style.display = 'none';
+    if (directorySection) directorySection.style.display = 'none';
+    if (countyPage) countyPage.style.display = 'none';
+    if (cityPage) cityPage.style.display = 'none';
+    if (adminSection) adminSection.style.display = 'none';
+
+    // Show marketplace
+    if (marketplaceSection) marketplaceSection.style.display = 'block';
+
+    // Check authentication
+    if (!currentUser) {
+      // Not logged in - show auth required message
+      if (marketplaceAuthRequired) marketplaceAuthRequired.style.display = 'block';
+      if (marketplaceContent) marketplaceContent.style.display = 'none';
+      if (marketplacePostBtn) marketplacePostBtn.style.display = 'none';
+    } else {
+      // Logged in - show marketplace content
+      if (marketplaceAuthRequired) marketplaceAuthRequired.style.display = 'none';
+      if (marketplaceContent) marketplaceContent.style.display = 'block';
+      if (marketplacePostBtn) marketplacePostBtn.style.display = 'inline-block';
+      
+      // Initialize marketplace
+      this.populateMarketplaceCountyDropdowns();
+      this.renderMarketplaceListings();
+    }
+  }
+
+  populateMarketplaceCountyDropdowns() {
+    const filterCounty = document.getElementById('marketplace-filter-county');
+    const editCounty = document.getElementById('edit-listing-county');
+
+    const options = Object.entries(COUNTY_NAME_MAP)
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([fips, name]) => `<option value="${fips}">${name}</option>`)
+      .join('');
+
+    if (filterCounty) {
+      filterCounty.innerHTML = '<option value="">All Counties</option>' + options;
+    }
+    if (editCounty) {
+      editCounty.innerHTML = '<option value="">Select county...</option>' + options;
+    }
+  }
+
+  renderMarketplaceListings(listings = MARKETPLACE_LISTINGS) {
+    const container = document.getElementById('marketplace-listings');
+    if (!container) return;
+
+    // Filter out expired listings
+    const activeListings = listings.filter(listing => {
+      if (!listing.isActive) return false;
+      if (listing.expiresAt && new Date(listing.expiresAt) < new Date()) {
+        listing.isActive = false;
+        return false;
+      }
+      return true;
+    });
+
+    // Save updated active status
+    localStorage.setItem('marketplaceListings', JSON.stringify(MARKETPLACE_LISTINGS));
+
+    if (activeListings.length === 0) {
+      container.innerHTML = '<p class="empty-state">No listings found. Be the first to post!</p>';
+      return;
+    }
+
+    container.innerHTML = activeListings.map(listing => {
+      const typeLabel = this.getMarketplaceTypeLabel(listing.type);
+      const countyName = COUNTY_NAME_MAP[listing.countyFips] || 'Unknown';
+      const createdDate = new Date(listing.createdAt).toLocaleDateString();
+      const currentUser = this.ds?.getCurrentUser();
+      const isOwner = currentUser && currentUser.email === listing.contactEmail;
+
+      return `
+        <div class="marketplace-item" data-id="${listing.id}">
+          <div class="marketplace-item-header">
+            <span class="marketplace-type-badge ${listing.type}">${typeLabel}</span>
+            ${isOwner ? '<span class="marketplace-owner-badge">Your Listing</span>' : ''}
+          </div>
+          <h3 class="marketplace-item-title">${this.escapeHtml(listing.title)}</h3>
+          <p class="marketplace-item-description">${this.escapeHtml(listing.description)}</p>
+          <div class="marketplace-item-meta">
+            <span>📍 ${this.escapeHtml(listing.location || countyName)}</span>
+            ${listing.price ? `<span>💰 ${this.escapeHtml(listing.price)}</span>` : ''}
+            <span>📅 ${createdDate}</span>
+          </div>
+          <div class="marketplace-item-footer">
+            <div class="marketplace-item-contact">
+              <strong>${this.escapeHtml(listing.contactName)}</strong>
+              ${listing.contactPhone ? `<span>📞 ${this.escapeHtml(listing.contactPhone)}</span>` : ''}
+              <span>📧 ${this.escapeHtml(listing.contactEmail)}</span>
+            </div>
+            ${isOwner ? `<button class="nav-btn" onclick="window.mtApp.editMarketplaceListing('${listing.id}')">Edit</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  getMarketplaceTypeLabel(type) {
+    const labels = {
+      'for-sale': '🏷️ For Sale',
+      'wanted': '🔍 Wanted',
+      'hiring': '💼 Hiring',
+      'looking-for-work': '👷 Job Seeker'
+    };
+    return labels[type] || type;
+  }
+
+  filterMarketplaceListings() {
+    const typeFilter = document.getElementById('marketplace-filter-type')?.value || '';
+    const countyFilter = document.getElementById('marketplace-filter-county')?.value || '';
+    const searchTerm = document.getElementById('marketplace-search')?.value.toLowerCase() || '';
+
+    let filtered = MARKETPLACE_LISTINGS.filter(listing => {
+      if (typeFilter && listing.type !== typeFilter) return false;
+      if (countyFilter && listing.countyFips !== countyFilter) return false;
+      if (searchTerm) {
+        const searchable = `${listing.title} ${listing.description} ${listing.location}`.toLowerCase();
+        if (!searchable.includes(searchTerm)) return false;
+      }
+      return true;
+    });
+
+    this.renderMarketplaceListings(filtered);
+  }
+
+  openMarketplacePostModal(listingId = null) {
+    const modal = document.getElementById('marketplace-post-modal');
+    const title = document.getElementById('marketplace-modal-title');
+    const deleteBtn = document.getElementById('marketplace-delete-btn');
+    const currentUser = this.ds?.getCurrentUser();
+
+    if (!modal) return;
+
+    if (listingId) {
+      // Edit mode
+      const listing = MARKETPLACE_LISTINGS.find(l => l.id === listingId);
+      if (!listing) return;
+
+      title.textContent = 'Edit Listing';
+      document.getElementById('edit-listing-id').value = listing.id;
+      document.getElementById('edit-listing-type').value = listing.type;
+      document.getElementById('edit-listing-title').value = listing.title;
+      document.getElementById('edit-listing-description').value = listing.description;
+      document.getElementById('edit-listing-price').value = listing.price || '';
+      document.getElementById('edit-listing-county').value = listing.countyFips;
+      document.getElementById('edit-listing-location').value = listing.location || '';
+      document.getElementById('edit-listing-contact-name').value = listing.contactName;
+      document.getElementById('edit-listing-contact-email').value = listing.contactEmail;
+      document.getElementById('edit-listing-contact-phone').value = listing.contactPhone || '';
+      
+      if (deleteBtn) deleteBtn.style.display = 'inline-block';
+    } else {
+      // Create mode
+      title.textContent = 'Post Listing';
+      document.getElementById('marketplace-post-form').reset();
+      document.getElementById('edit-listing-id').value = '';
+      
+      // Pre-fill user info if available
+      if (currentUser) {
+        document.getElementById('edit-listing-contact-email').value = currentUser.email;
+        if (currentUser.displayName) {
+          document.getElementById('edit-listing-contact-name').value = currentUser.displayName;
+        }
+      }
+      
+      if (deleteBtn) deleteBtn.style.display = 'none';
+    }
+
+    modal.style.display = 'flex';
+  }
+
+  closeMarketplacePostModal() {
+    const modal = document.getElementById('marketplace-post-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async handleMarketplacePost(e) {
+    e.preventDefault();
+
+    const currentUser = this.ds?.getCurrentUser();
+    if (!currentUser) {
+      this.showNotification('You must be logged in to post', 'error');
+      return;
+    }
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    const origText = btn?.textContent || '';
+    if (btn) { btn.textContent = 'Posting...'; btn.disabled = true; }
+
+    try {
+      const listingId = document.getElementById('edit-listing-id').value;
+      const isEdit = !!listingId;
+
+      const listingData = {
+        id: listingId || `listing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: document.getElementById('edit-listing-type').value,
+        title: document.getElementById('edit-listing-title').value,
+        description: document.getElementById('edit-listing-description').value,
+        price: document.getElementById('edit-listing-price').value,
+        countyFips: document.getElementById('edit-listing-county').value,
+        location: document.getElementById('edit-listing-location').value,
+        contactName: document.getElementById('edit-listing-contact-name').value,
+        contactEmail: document.getElementById('edit-listing-contact-email').value,
+        contactPhone: document.getElementById('edit-listing-contact-phone').value,
+        userId: currentUser.uid || currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        isActive: true,
+        createdAt: isEdit ? (MARKETPLACE_LISTINGS.find(l => l.id === listingId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + parseInt(document.getElementById('edit-listing-duration').value) * 24 * 60 * 60 * 1000).toISOString()
+      };
+
+      if (isEdit) {
+        const index = MARKETPLACE_LISTINGS.findIndex(l => l.id === listingId);
+        if (index !== -1) {
+          MARKETPLACE_LISTINGS[index] = listingData;
+        }
+      } else {
+        MARKETPLACE_LISTINGS.unshift(listingData);
+      }
+
+      localStorage.setItem('marketplaceListings', JSON.stringify(MARKETPLACE_LISTINGS));
+
+      // Try to save to Firebase if available
+      if (this.ds) {
+        await this.ds.saveMarketplaceListing?.(listingData);
+      }
+
+      this.showNotification(`✅ Listing ${isEdit ? 'updated' : 'posted'} successfully!`, 'success');
+      this.closeMarketplacePostModal();
+      this.renderMarketplaceListings();
+    } catch (error) {
+      console.error('Error posting marketplace listing:', error);
+      this.showNotification('Failed to post listing', 'error');
+    } finally {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }
+  }
+
+  editMarketplaceListing(listingId) {
+    this.openMarketplacePostModal(listingId);
+  }
+
+  async deleteMarketplaceListing() {
+    const listingId = document.getElementById('edit-listing-id').value;
+    if (!listingId) return;
+
+    if (!confirm('Are you sure you want to delete this listing?')) return;
+
+    const index = MARKETPLACE_LISTINGS.findIndex(l => l.id === listingId);
+    if (index !== -1) {
+      MARKETPLACE_LISTINGS.splice(index, 1);
+      localStorage.setItem('marketplaceListings', JSON.stringify(MARKETPLACE_LISTINGS));
+
+      // Try to delete from Firebase if available
+      if (this.ds) {
+        await this.ds.deleteMarketplaceListing?.(listingId);
+      }
+
+      this.showNotification('✅ Listing deleted', 'success');
+      this.closeMarketplacePostModal();
+      this.renderMarketplaceListings();
     }
   }
 }
