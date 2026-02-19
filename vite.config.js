@@ -1,7 +1,17 @@
-import { defineConfig } from 'vite'
+import { createLogger, defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
+
+const viteLogger = createLogger()
+const viteLoggerWarn = viteLogger.warn
+viteLogger.warn = (msg, options) => {
+  const warningText = typeof msg === 'string' ? msg : ''
+  if (warningText.includes('can\'t be bundled without type="module" attribute')) {
+    return
+  }
+  viteLoggerWarn(msg, options)
+}
 
 // Skip Vite's import analysis on plain (non-module) JS files
 const skipPlainScripts = () => ({
@@ -56,6 +66,7 @@ const copyStaticFiles = () => ({
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  customLogger: viteLogger,
   plugins: [react(), skipPlainScripts(), copyStaticFiles()],
   server: {
     port: 3000,
