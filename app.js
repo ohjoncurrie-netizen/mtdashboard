@@ -1988,7 +1988,7 @@ class MTApp {
     // Fetch views (Firestore if available, else localStorage)
     let views = window.ANALYTICS_VIEWS || [];
     if (this.ds && typeof this.ds.getAnalyticsViews === 'function') {
-      try { views = await this.ds.getAnalyticsViews(); } catch (e) {}
+      try { views = await this.ds.getAnalyticsViews(); } catch (_e) { void _e; }
     }
 
     const now = Date.now();
