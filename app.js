@@ -524,6 +524,36 @@ class MTApp {
       });
     }
 
+    // Discussion link in sidebar
+    const sidebarDiscussion = document.getElementById('sidebar-discussion');
+    if (sidebarDiscussion) {
+      sidebarDiscussion.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.closeSidebar();
+        this.toggleDiscussionBoard();
+      });
+    }
+
+    // Events link in sidebar
+    const sidebarEvents = document.getElementById('sidebar-events');
+    if (sidebarEvents) {
+      sidebarEvents.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.closeSidebar();
+        this.showEventsPage();
+      });
+    }
+
+    // Awards/Top 20 link in sidebar
+    const sidebarAwards = document.getElementById('sidebar-awards');
+    if (sidebarAwards) {
+      sidebarAwards.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.closeSidebar();
+        this.showAwardsPage();
+      });
+    }
+
     // Sidebar auth buttons (mobile)
     document.getElementById('sidebar-signin-btn')?.addEventListener('click', () => {
       this.closeSidebar();
