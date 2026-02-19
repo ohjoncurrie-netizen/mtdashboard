@@ -884,30 +884,37 @@ class MTApp {
     }
   }
 
-  toggleBusinessForm() {
+  toggleBusinessForm(forceOpen = null) {
     const formSection = document.getElementById('business-form-section');
     if (formSection) {
       const isHidden = formSection.style.display === 'none';
-      formSection.style.display = isHidden ? 'block' : 'none';
-      this.setHeaderNavActive(isHidden ? 'business-btn' : null);
+      const shouldOpen = forceOpen === null ? isHidden : forceOpen;
+      formSection.style.display = shouldOpen ? 'block' : 'none';
+      this.setHeaderNavActive(shouldOpen ? 'business-btn' : null);
+      this.setHash(shouldOpen ? '/montana/business' : '/montana');
     }
   }
 
-  toggleDiscussionBoard() {
+  toggleDiscussionBoard(forceOpen = null) {
     const mapSection = document.getElementById('map-section');
     const discussionSection = document.getElementById('discussion-section');
     
     if (discussionSection) {
+      const isHidden = discussionSection.style.display === 'none';
+      const shouldOpen = forceOpen === null ? isHidden : forceOpen;
+
       // Hide map, show discussion
-      if (discussionSection.style.display === 'none') {
+      if (shouldOpen) {
         discussionSection.style.display = 'block';
         if (mapSection) mapSection.style.display = 'none';
         this.setHeaderNavActive('discussion-btn');
+        this.setHash('/montana/discussion');
         this.initializeDiscussionBoard();
       } else {
         discussionSection.style.display = 'none';
         if (mapSection) mapSection.style.display = 'block';
         this.setHeaderNavActive();
+        this.setHash('/montana');
       }
     }
   }
@@ -2335,6 +2342,16 @@ class MTApp {
 
     if (segments.length === 2 && segments[1] === 'events') {
       this.showEventsPage();
+      return;
+    }
+
+    if (segments.length === 2 && segments[1] === 'discussion') {
+      this.toggleDiscussionBoard(true);
+      return;
+    }
+
+    if (segments.length === 2 && segments[1] === 'business') {
+      this.toggleBusinessForm(true);
       return;
     }
 
