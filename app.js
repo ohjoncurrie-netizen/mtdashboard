@@ -1566,7 +1566,29 @@ class MTApp {
     this.currentCounty = null;
     this.currentCity = null;
     this.setBreadcrumb({});
+    this.setHeaderNavActive('directory-btn');
     this.setHash('/montana');
+  }
+
+  setHeaderNavActive(activeButtonId = null) {
+    const ids = [
+      'directory-btn',
+      'business-btn',
+      'marketplace-nav-btn',
+      'discussion-btn',
+      'events-nav-btn',
+      'awards-btn'
+    ];
+
+    ids.forEach(id => {
+      const button = document.getElementById(id);
+      if (button) button.classList.remove('active');
+    });
+
+    if (activeButtonId) {
+      const activeButton = document.getElementById(activeButtonId);
+      if (activeButton) activeButton.classList.add('active');
+    }
   }
 
   refresh() {
@@ -2194,6 +2216,7 @@ class MTApp {
     this.currentCounty = null;
     this.currentCity = null;
     this.setBreadcrumb({});
+    this.setHeaderNavActive();
     this.setHash('/montana');
   }
 
@@ -3214,6 +3237,7 @@ class MTApp {
       if (mapSection) mapSection.style.display = 'none';
       if (discussionSection) discussionSection.style.display = 'none';
       if (awardsSection) awardsSection.style.display = 'none';
+      this.setHeaderNavActive('events-nav-btn');
       this._populateEventsCountyFilter();
       this.loadPublicEvents();
     }
@@ -3224,6 +3248,7 @@ class MTApp {
     const mapSection = document.getElementById('map-section');
     if (eventsSection) eventsSection.style.display = 'none';
     if (mapSection) mapSection.style.display = 'block';
+    this.setHeaderNavActive();
   }
 
   _countyNameMap() {
@@ -4502,6 +4527,7 @@ class MTApp {
     const awardsSection = document.getElementById('awards-page-section');
     if (awardsSection) {
       awardsSection.style.display = 'block';
+      this.setHeaderNavActive('awards-btn');
       this.renderTopLeaderboard();
       this.renderAwardsCatalog();
     }
@@ -4510,6 +4536,7 @@ class MTApp {
   closeAwardsPage() {
     const awardsSection = document.getElementById('awards-page-section');
     if (awardsSection) awardsSection.style.display = 'none';
+    this.setHeaderNavActive();
   }
 
   async renderTopLeaderboard() {
@@ -4716,6 +4743,7 @@ class MTApp {
 
     // Show marketplace
     if (marketplaceSection) marketplaceSection.style.display = 'block';
+    this.setHeaderNavActive('marketplace-nav-btn');
 
     // Check authentication
     if (!currentUser) {
