@@ -35,6 +35,7 @@
 
   let db = null;
   let auth = null;
+  let storage = null;
   let firebaseReady = false;
 
   // Check if Firebase compat SDK was loaded (added via <script> in index.html)
@@ -43,6 +44,7 @@
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
       auth = firebase.auth();
+      storage = typeof firebase.storage === 'function' ? firebase.storage() : null;
       firebaseReady = true;
       console.log('🔥 Firebase initialized');
     } else {
@@ -578,6 +580,133 @@
       const all = JSON.parse(localStorage.getItem('eventsData')) || [];
       const filtered = all.filter(e => e.id !== eventId);
       localStorage.setItem('eventsData', JSON.stringify(filtered));
+    }
+
+    // ── Marketplace ──
+    async getMarketplaceListings() {
+      if (this.useFirebase) {
+        try {
+          const snap = await db.collection('marketplace')
+            .orderBy('createdAt', 'desc')
+            .get();
+
+          const listings = [];
+          snap.forEach(doc => {
+            const data = doc.data() || {};
+            listings.push({
+              id: doc.id,
+              ...data,
+              createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
+              updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (data.updatedAt || null)
+            });
+          });
+
+          localStorage.setItem('marketplaceListings', JSON.stringify(listings));
+          return listings;
+        } catch (err) {
+          console.error('Error fetching marketplace listings:', err);
+        }
+      }
+
+      return JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+    }
+
+    async uploadMarketplaceImage(file, listingId = 'new') {
+      if (!file) return '';
+
+      if (this.useFirebase && storage) {
+        const safeName = String(file.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `marketplace/${listingId}/${Date.now()}_${safeName}`;
+        const ref = storage.ref().child(path);
+        await ref.put(file);
+        return ref.getDownloadURL();
+      }
+
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Unable to read image file'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async saveMarketplaceListing(listingData) {
+      const normalized = {
+        title: listingData.title || '',
+        description: listingData.description || '',
+        price: listingData.price || '',
+        category: listingData.category || listingData.type || 'for_sale',
+        location: listingData.location || '',
+        imageUrl: listingData.imageUrl || '',
+        contactInfo: listingData.contactInfo || listingData.contactEmail || '',
+        contactName: listingData.contactName || '',
+        contactEmail: listingData.contactEmail || '',
+        contactPhone: listingData.contactPhone || '',
+        userId: listingData.userId || '',
+        userName: listingData.userName || '',
+        isActive: listingData.isActive !== false
+      };
+
+      let saved;
+      if (this.useFirebase) {
+        if (listingData.id) {
+          await db.collection('marketplace').doc(listingData.id).set({
+            ...normalized,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          const doc = await db.collection('marketplace').doc(listingData.id).get();
+          const data = doc.data() || {};
+          saved = {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (data.updatedAt || new Date().toISOString())
+          };
+        } else {
+          const createdRef = await db.collection('marketplace').add({
+            ...normalized,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+          const doc = await createdRef.get();
+          const data = doc.data() || {};
+          saved = {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date().toISOString()
+          };
+        }
+      } else {
+        saved = {
+          id: listingData.id || `listing_${Date.now()}`,
+          ...normalized,
+          createdAt: listingData.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+      }
+
+      const all = JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+      const idx = all.findIndex(item => item.id === saved.id);
+      if (idx >= 0) {
+        all[idx] = saved;
+      } else {
+        all.unshift(saved);
+      }
+      localStorage.setItem('marketplaceListings', JSON.stringify(all));
+      return saved;
+    }
+
+    async deleteMarketplaceListing(listingId) {
+      if (this.useFirebase) {
+        await db.collection('marketplace').doc(listingId).delete();
+      }
+
+      const all = JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+      localStorage.setItem('marketplaceListings', JSON.stringify(all.filter(item => item.id !== listingId)));
+      return { success: true };
     }
 
     // ── Discussion Posts ──

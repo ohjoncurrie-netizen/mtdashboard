@@ -247,7 +247,7 @@
             <h2>Montana Marketplace</h2>
             <div class="marketplace-actions">
               <button class="nav-btn" id="marketplace-back-btn">Back to Map</button>
-              <button class="submit-btn" id="marketplace-post-btn" style="display: none;">+ Post Listing</button>
+              <button class="submit-btn" id="marketplace-post-btn" style="display: none;">+ Post an Ad</button>
             </div>
           </div>
 
@@ -275,10 +275,11 @@
                   <label>Category</label>
                   <select id="marketplace-filter-type" class="search-input">
                     <option value="">All Categories</option>
-                    <option value="for-sale">🏷️ For Sale</option>
-                    <option value="wanted">🔍 Wanted to Buy</option>
-                    <option value="hiring">💼 Hiring</option>
-                    <option value="looking-for-work">👷 Looking for Work</option>
+                    <option value="buying">🔍 Buy</option>
+                    <option value="selling">🏷️ Sell</option>
+                    <option value="for_hire">👷 For Hire</option>
+                    <option value="for_sale">📦 For Sale</option>
+                    <option value="community">📣 Community Announcements</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -870,13 +871,14 @@
               <input type="hidden" id="edit-listing-id">
 
               <div class="form-group">
-                <label>Listing Type *</label>
+                <label>Category *</label>
                 <select id="edit-listing-type" required>
-                  <option value="">Select type...</option>
-                  <option value="for-sale">🏷️ For Sale</option>
-                  <option value="wanted">🔍 Wanted to Buy</option>
-                  <option value="hiring">💼 Hiring</option>
-                  <option value="looking-for-work">👷 Looking for Work</option>
+                  <option value="">Select category...</option>
+                  <option value="buying">🔍 Buy</option>
+                  <option value="selling">🏷️ Sell</option>
+                  <option value="for_hire">👷 For Hire</option>
+                  <option value="for_sale">📦 For Sale</option>
+                  <option value="community">📣 Community Announcements</option>
                 </select>
               </div>
 
@@ -904,8 +906,14 @@
               </div>
 
               <div class="form-group">
-                <label>City/Town (optional)</label>
-                <input type="text" id="edit-listing-location" placeholder="E.g., Bozeman, Helena">
+                <label>Location (Montana City/County) *</label>
+                <input type="text" id="edit-listing-location" placeholder="E.g., Great Falls, Missoula County" required>
+              </div>
+
+              <div class="form-group">
+                <label>Image *</label>
+                <input type="file" id="edit-listing-image" accept="image/*">
+                <small class="form-note">Upload at least one image for your post.</small>
               </div>
 
               <div class="form-group">
@@ -941,6 +949,29 @@
                 <button type="submit" class="submit-btn">Post Listing</button>
               </div>
             </form>
+          </div>
+        </div>
+
+        <!-- Marketplace View Modal -->
+        <div class="modal" id="marketplace-view-modal" style="display: none;">
+          <div class="modal-content card" style="max-width: 760px;">
+            <div class="modal-header">
+              <h3 id="marketplace-view-title">Marketplace Listing</h3>
+              <button class="modal-close" id="marketplace-view-close-btn">&times;</button>
+            </div>
+            <div class="city-modal-body">
+              <img id="marketplace-view-image" alt="Listing image" style="width: 100%; max-height: 340px; object-fit: cover; border-radius: 10px; margin-bottom: 16px;">
+              <div class="marketplace-item-meta" style="margin-bottom: 12px;">
+                <span id="marketplace-view-price"></span>
+                <span id="marketplace-view-location"></span>
+                <span id="marketplace-view-date"></span>
+              </div>
+              <p id="marketplace-view-description"></p>
+              <div style="margin-top: 16px;">
+                <h4 style="margin-bottom: 8px;">Contact</h4>
+                <p id="marketplace-view-contact"></p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1797,6 +1828,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <script src="firebase-config.js?v=20260219b"></script>
   <script src="config.js?v=20260219b"></script>
   <script src="app.js?v=20260219b"></script>

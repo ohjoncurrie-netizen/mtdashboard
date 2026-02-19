@@ -2,6 +2,7 @@
 function initGoogleMaps() {
   window.googleMapsLoaded = true;
 }
+window.initGoogleMaps = initGoogleMaps;
 
 const COUNTY_NAME_MAP = {
   '30001': 'Beaverhead County', '30003': 'Big Horn County', '30005': 'Blaine County',
@@ -43,6 +44,7 @@ class MTApp {
     this.isUpdatingHash = false;
     this.ds = window.dataService; // Data service (Firebase or localStorage)
     this._eventsAllCache = []; // Cache for community events page filtering
+    this._marketplaceListings = [];
     this._currentShareEvent = null;
   }
 
@@ -425,7 +427,7 @@ class MTApp {
           });
           
           // Open popup on click
-          layer.on('click', function(e) {
+          layer.on('click', function() {
             this.openPopup();
             // Optionally zoom to county bounds
             // this._map.fitBounds(this.getBounds());
@@ -838,6 +840,11 @@ class MTApp {
     const marketplaceDeleteBtn = document.getElementById('marketplace-delete-btn');
     if (marketplaceDeleteBtn) {
       marketplaceDeleteBtn.addEventListener('click', () => this.deleteMarketplaceListing());
+    }
+
+    const marketplaceViewCloseBtn = document.getElementById('marketplace-view-close-btn');
+    if (marketplaceViewCloseBtn) {
+      marketplaceViewCloseBtn.addEventListener('click', () => this.closeMarketplaceViewModal());
     }
   }
 
@@ -1996,8 +2003,6 @@ class MTApp {
     const todayViews = views.filter(v => now - v.ts < dayMs);
     const countyViews = views.filter(v => v.type === 'county');
     const cityViews   = views.filter(v => v.type === 'city');
-    const evtViews    = views.filter(v => v.type === 'event');
-    const discViews   = views.filter(v => v.type === 'discussion');
 
     // Summary cards
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -2027,7 +2032,7 @@ class MTApp {
       const top = rows.slice(0, maxRows);
       if (top.length === 0) { el.innerHTML = '<p class="empty-state">No data yet.</p>'; return; }
       const maxCount = top[0].count;
-      el.innerHTML = top.map((r, i) => `
+      el.innerHTML = top.map((r) => `
         <div class="analytics-bar-row">
           <div class="analytics-bar-label" title="${r.name}">${r.name}</div>
           <div class="analytics-bar-track">
@@ -3090,7 +3095,6 @@ class MTApp {
   // ============================================
 
   async loadUserList() {
-    const userList = document.getElementById('user-list');
     const usersHeader = document.getElementById('users-header');
     const userHelpText = document.getElementById('user-help-text');
 
@@ -3279,7 +3283,6 @@ class MTApp {
     try {
       const events = await this.ds.getAllEvents();
       // Sort: upcoming first, then by featured
-      const now = new Date();
       events.sort((a, b) => {
         if (a.featured && !b.featured) return -1;
         if (!a.featured && b.featured) return 1;
@@ -4550,7 +4553,7 @@ class MTApp {
   }
 
   renderAwardsCatalog() {
-    const catalogHtml = Object.entries(AWARDS).map(([key, award]) => `
+    const catalogHtml = Object.entries(AWARDS).map(([, award]) => `
       <div class="award-catalog-item">
         <div class="award-catalog-icon">${award.icon}</div>
         <div class="award-catalog-content">
@@ -4689,7 +4692,7 @@ class MTApp {
 
   // ===== MARKETPLACE FUNCTIONS =====
 
-  showMarketplace() {
+  async showMarketplace() {
     const currentUser = this.ds?.getCurrentUser();
     const marketplaceSection = document.getElementById('marketplace-section');
     const marketplaceAuthRequired = document.getElementById('marketplace-auth-required');
@@ -4727,8 +4730,25 @@ class MTApp {
       
       // Initialize marketplace
       this.populateMarketplaceCountyDropdowns();
+      await this.refreshMarketplaceListings();
       this.renderMarketplaceListings();
     }
+  }
+
+  async refreshMarketplaceListings() {
+    try {
+      if (this.ds?.getMarketplaceListings) {
+        this._marketplaceListings = await this.ds.getMarketplaceListings();
+      } else {
+        this._marketplaceListings = JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+      }
+    } catch (error) {
+      console.error('Error refreshing marketplace listings:', error);
+      this._marketplaceListings = JSON.parse(localStorage.getItem('marketplaceListings')) || [];
+    }
+
+    window.MARKETPLACE_LISTINGS = this._marketplaceListings;
+    return this._marketplaceListings;
   }
 
   populateMarketplaceCountyDropdowns() {
@@ -4748,22 +4768,11 @@ class MTApp {
     }
   }
 
-  renderMarketplaceListings(listings = MARKETPLACE_LISTINGS) {
+  renderMarketplaceListings(listings = this._marketplaceListings) {
     const container = document.getElementById('marketplace-listings');
     if (!container) return;
 
-    // Filter out expired listings
-    const activeListings = listings.filter(listing => {
-      if (!listing.isActive) return false;
-      if (listing.expiresAt && new Date(listing.expiresAt) < new Date()) {
-        listing.isActive = false;
-        return false;
-      }
-      return true;
-    });
-
-    // Save updated active status
-    localStorage.setItem('marketplaceListings', JSON.stringify(MARKETPLACE_LISTINGS));
+    const activeListings = listings.filter(listing => listing.isActive !== false);
 
     if (activeListings.length === 0) {
       container.innerHTML = '<p class="empty-state">No listings found. Be the first to post!</p>';
@@ -4771,16 +4780,20 @@ class MTApp {
     }
 
     container.innerHTML = activeListings.map(listing => {
-      const typeLabel = this.getMarketplaceTypeLabel(listing.type);
+      const listingCategory = listing.category || listing.type;
+      const typeLabel = this.getMarketplaceTypeLabel(listingCategory);
       const countyName = COUNTY_NAME_MAP[listing.countyFips] || 'Unknown';
       const createdDate = new Date(listing.createdAt).toLocaleDateString();
       const currentUser = this.ds?.getCurrentUser();
       const isOwner = currentUser && currentUser.email === listing.contactEmail;
+      const imageSrc = listing.imageUrl || '';
+      const contactText = listing.contactInfo || listing.contactEmail || '';
 
       return `
         <div class="marketplace-item" data-id="${listing.id}">
+          ${imageSrc ? `<img class="marketplace-item-image" src="${this.escapeHtml(imageSrc)}" alt="${this.escapeHtml(listing.title)}">` : '<div class="marketplace-item-image marketplace-item-image-placeholder">🛍️</div>'}
           <div class="marketplace-item-header">
-            <span class="marketplace-type-badge ${listing.type}">${typeLabel}</span>
+            <span class="marketplace-type-badge ${listingCategory}">${typeLabel}</span>
             ${isOwner ? '<span class="marketplace-owner-badge">Your Listing</span>' : ''}
           </div>
           <h3 class="marketplace-item-title">${this.escapeHtml(listing.title)}</h3>
@@ -4794,9 +4807,12 @@ class MTApp {
             <div class="marketplace-item-contact">
               <strong>${this.escapeHtml(listing.contactName)}</strong>
               ${listing.contactPhone ? `<span>📞 ${this.escapeHtml(listing.contactPhone)}</span>` : ''}
-              <span>📧 ${this.escapeHtml(listing.contactEmail)}</span>
+              <span>${this.escapeHtml(contactText)}</span>
             </div>
-            ${isOwner ? `<button class="nav-btn" onclick="window.mtApp.editMarketplaceListing('${listing.id}')">Edit</button>` : ''}
+            <div>
+              <button class="nav-btn" onclick="window.mtApp.openMarketplaceViewModal('${listing.id}')">View</button>
+              ${isOwner ? `<button class="nav-btn" onclick="window.mtApp.editMarketplaceListing('${listing.id}')">Edit</button>` : ''}
+            </div>
           </div>
         </div>
       `;
@@ -4805,10 +4821,11 @@ class MTApp {
 
   getMarketplaceTypeLabel(type) {
     const labels = {
-      'for-sale': '🏷️ For Sale',
-      'wanted': '🔍 Wanted',
-      'hiring': '💼 Hiring',
-      'looking-for-work': '👷 Job Seeker'
+      buying: '🔍 Buy',
+      selling: '🏷️ Sell',
+      for_hire: '👷 For Hire',
+      for_sale: '📦 For Sale',
+      community: '📣 Community'
     };
     return labels[type] || type;
   }
@@ -4818,8 +4835,8 @@ class MTApp {
     const countyFilter = document.getElementById('marketplace-filter-county')?.value || '';
     const searchTerm = document.getElementById('marketplace-search')?.value.toLowerCase() || '';
 
-    let filtered = MARKETPLACE_LISTINGS.filter(listing => {
-      if (typeFilter && listing.type !== typeFilter) return false;
+    const filtered = this._marketplaceListings.filter(listing => {
+      if (typeFilter && (listing.category || listing.type) !== typeFilter) return false;
       if (countyFilter && listing.countyFips !== countyFilter) return false;
       if (searchTerm) {
         const searchable = `${listing.title} ${listing.description} ${listing.location}`.toLowerCase();
@@ -4841,12 +4858,12 @@ class MTApp {
 
     if (listingId) {
       // Edit mode
-      const listing = MARKETPLACE_LISTINGS.find(l => l.id === listingId);
+      const listing = this._marketplaceListings.find(l => l.id === listingId);
       if (!listing) return;
 
       title.textContent = 'Edit Listing';
       document.getElementById('edit-listing-id').value = listing.id;
-      document.getElementById('edit-listing-type').value = listing.type;
+      document.getElementById('edit-listing-type').value = listing.category || listing.type || '';
       document.getElementById('edit-listing-title').value = listing.title;
       document.getElementById('edit-listing-description').value = listing.description;
       document.getElementById('edit-listing-price').value = listing.price || '';
@@ -4855,6 +4872,7 @@ class MTApp {
       document.getElementById('edit-listing-contact-name').value = listing.contactName;
       document.getElementById('edit-listing-contact-email').value = listing.contactEmail;
       document.getElementById('edit-listing-contact-phone').value = listing.contactPhone || '';
+      document.getElementById('edit-listing-image').required = false;
       
       if (deleteBtn) deleteBtn.style.display = 'inline-block';
     } else {
@@ -4862,6 +4880,7 @@ class MTApp {
       title.textContent = 'Post Listing';
       document.getElementById('marketplace-post-form').reset();
       document.getElementById('edit-listing-id').value = '';
+      document.getElementById('edit-listing-image').required = true;
       
       // Pre-fill user info if available
       if (currentUser) {
@@ -4875,6 +4894,32 @@ class MTApp {
     }
 
     modal.style.display = 'flex';
+  }
+
+  openMarketplaceViewModal(listingId) {
+    const modal = document.getElementById('marketplace-view-modal');
+    if (!modal) return;
+
+    const listing = this._marketplaceListings.find(item => item.id === listingId);
+    if (!listing) return;
+
+    document.getElementById('marketplace-view-title').textContent = listing.title || '';
+    document.getElementById('marketplace-view-description').textContent = listing.description || '';
+    document.getElementById('marketplace-view-price').textContent = listing.price ? `💰 ${listing.price}` : '💰 Contact for price';
+    document.getElementById('marketplace-view-location').textContent = `📍 ${listing.location || 'Montana'}`;
+    document.getElementById('marketplace-view-date').textContent = `📅 ${new Date(listing.createdAt).toLocaleDateString()}`;
+    document.getElementById('marketplace-view-contact').textContent = listing.contactInfo || listing.contactEmail || '';
+
+    const imageEl = document.getElementById('marketplace-view-image');
+    imageEl.src = listing.imageUrl || '';
+    imageEl.style.display = listing.imageUrl ? 'block' : 'none';
+
+    modal.style.display = 'flex';
+  }
+
+  closeMarketplaceViewModal() {
+    const modal = document.getElementById('marketplace-view-modal');
+    if (modal) modal.style.display = 'none';
   }
 
   closeMarketplacePostModal() {
@@ -4898,44 +4943,66 @@ class MTApp {
     try {
       const listingId = document.getElementById('edit-listing-id').value;
       const isEdit = !!listingId;
+      const imageInput = document.getElementById('edit-listing-image');
+      const imageFile = imageInput?.files?.[0] || null;
+      const existingListing = isEdit ? this._marketplaceListings.find(item => item.id === listingId) : null;
+      const hasExistingImage = !!existingListing?.imageUrl;
+
+      if (!isEdit && !imageFile) {
+        this.showNotification('Please upload at least one image for your post.', 'error');
+        return;
+      }
+
+      let imageUrl = existingListing?.imageUrl || '';
+      if (imageFile) {
+        imageUrl = await this.ds.uploadMarketplaceImage?.(imageFile, listingId || 'new') || imageUrl;
+      }
+
+      if (!imageUrl && !hasExistingImage) {
+        this.showNotification('Image upload is required before posting.', 'error');
+        return;
+      }
+
+      const contactEmail = document.getElementById('edit-listing-contact-email').value;
+      const contactPhone = document.getElementById('edit-listing-contact-phone').value;
+      const contactInfo = contactPhone || contactEmail;
 
       const listingData = {
-        id: listingId || `listing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        type: document.getElementById('edit-listing-type').value,
+        id: listingId || undefined,
+        category: document.getElementById('edit-listing-type').value,
         title: document.getElementById('edit-listing-title').value,
         description: document.getElementById('edit-listing-description').value,
         price: document.getElementById('edit-listing-price').value,
         countyFips: document.getElementById('edit-listing-county').value,
         location: document.getElementById('edit-listing-location').value,
+        imageUrl,
+        contactInfo,
         contactName: document.getElementById('edit-listing-contact-name').value,
-        contactEmail: document.getElementById('edit-listing-contact-email').value,
-        contactPhone: document.getElementById('edit-listing-contact-phone').value,
+        contactEmail,
+        contactPhone,
         userId: currentUser.uid || currentUser.email,
         userName: currentUser.displayName || currentUser.email,
         isActive: true,
-        createdAt: isEdit ? (MARKETPLACE_LISTINGS.find(l => l.id === listingId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + parseInt(document.getElementById('edit-listing-duration').value) * 24 * 60 * 60 * 1000).toISOString()
+        createdAt: isEdit ? (existingListing?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
-      if (isEdit) {
-        const index = MARKETPLACE_LISTINGS.findIndex(l => l.id === listingId);
-        if (index !== -1) {
-          MARKETPLACE_LISTINGS[index] = listingData;
-        }
+      const saved = this.ds?.saveMarketplaceListing
+        ? await this.ds.saveMarketplaceListing(listingData)
+        : listingData;
+
+      const idx = this._marketplaceListings.findIndex(item => item.id === saved.id);
+      if (idx >= 0) {
+        this._marketplaceListings[idx] = saved;
       } else {
-        MARKETPLACE_LISTINGS.unshift(listingData);
+        this._marketplaceListings.unshift(saved);
       }
-
-      localStorage.setItem('marketplaceListings', JSON.stringify(MARKETPLACE_LISTINGS));
-
-      // Try to save to Firebase if available
-      if (this.ds) {
-        await this.ds.saveMarketplaceListing?.(listingData);
-      }
+      window.MARKETPLACE_LISTINGS = this._marketplaceListings;
+      localStorage.setItem('marketplaceListings', JSON.stringify(this._marketplaceListings));
 
       this.showNotification(`✅ Listing ${isEdit ? 'updated' : 'posted'} successfully!`, 'success');
       this.closeMarketplacePostModal();
+      this.closeMarketplaceViewModal();
       this.renderMarketplaceListings();
     } catch (error) {
       console.error('Error posting marketplace listing:', error);
@@ -4955,10 +5022,11 @@ class MTApp {
 
     if (!confirm('Are you sure you want to delete this listing?')) return;
 
-    const index = MARKETPLACE_LISTINGS.findIndex(l => l.id === listingId);
+    const index = this._marketplaceListings.findIndex(l => l.id === listingId);
     if (index !== -1) {
-      MARKETPLACE_LISTINGS.splice(index, 1);
-      localStorage.setItem('marketplaceListings', JSON.stringify(MARKETPLACE_LISTINGS));
+      this._marketplaceListings.splice(index, 1);
+      window.MARKETPLACE_LISTINGS = this._marketplaceListings;
+      localStorage.setItem('marketplaceListings', JSON.stringify(this._marketplaceListings));
 
       // Try to delete from Firebase if available
       if (this.ds) {
@@ -4967,6 +5035,7 @@ class MTApp {
 
       this.showNotification('✅ Listing deleted', 'success');
       this.closeMarketplacePostModal();
+      this.closeMarketplaceViewModal();
       this.renderMarketplaceListings();
     }
   }

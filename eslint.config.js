@@ -80,9 +80,6 @@ export default [
         MARKETPLACE_LISTINGS: 'readonly',
       },
     },
-    rules: {
-      'no-unused-vars': 'off',
-    },
   },
   {
     files: ['firebase-config.js', 'config.js'],
