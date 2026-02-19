@@ -4,6 +4,18 @@ function initGoogleMaps() {
 }
 window.initGoogleMaps = initGoogleMaps;
 
+const {
+  ADMIN_CONFIG,
+  BUSINESSES,
+  COUNTY_DATA,
+  CITY_DATA,
+  EVENTS_DATA,
+  DISCUSSION_POSTS,
+  MEMBER_PROFILES,
+  AWARDS,
+  COUNTY_CITIES
+} = window;
+
 const COUNTY_NAME_MAP = {
   '30001': 'Beaverhead County', '30003': 'Big Horn County', '30005': 'Blaine County',
   '30007': 'Broadwater County', '30009': 'Carbon County', '30011': 'Carter County',
