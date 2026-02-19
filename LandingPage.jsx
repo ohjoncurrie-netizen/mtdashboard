@@ -4,7 +4,6 @@ import {
   Map, 
   Layers, 
   BookOpen, 
-  Users, 
   Mountain, 
   Waves, 
   Landmark, 

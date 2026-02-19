@@ -4208,18 +4208,18 @@ class MTApp {
     const userNav = document.getElementById('user-nav');
 
     if (user && (user.email || user.displayName)) {
+      const resolvedDisplayName = user.displayName || user.email?.split('@')[0] || 'User';
       // Show user nav
       if (authNav) authNav.style.display = 'none';
       if (userNav) {
         userNav.style.display = 'flex';
-        const displayName = user.displayName || user.email?.split('@')[0] || 'User';
         const members = JSON.parse(localStorage.getItem('memberProfiles')) || {};
-        const member = Object.values(members).find(m => m.email === user.email || m.name === displayName);
+        const member = Object.values(members).find(m => m.email === user.email || m.name === resolvedDisplayName);
         const avatar = member?.avatarEmoji || '👤';
-        document.getElementById('user-display-name').textContent = displayName;
+        document.getElementById('user-display-name').textContent = resolvedDisplayName;
         document.getElementById('user-avatar-emoji').textContent = avatar;
       }
-      this.currentUser = { email: user.email, displayName: user.displayName || displayName, uid: user.uid };
+      this.currentUser = { email: user.email, displayName: resolvedDisplayName, uid: user.uid };
       // Show "Add Event" button when user is logged in
       const addEventBtn = document.getElementById('events-add-btn');
       if (addEventBtn) addEventBtn.style.display = 'inline-flex';

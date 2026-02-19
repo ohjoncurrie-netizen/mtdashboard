@@ -37,10 +37,53 @@ export default [
       ...reactPlugin.configs.recommended.rules,
       ...reactPlugin.configs['jsx-runtime'].rules,
       ...reactHooksPlugin.configs.recommended.rules,
+      'no-unused-vars': [
+        'error',
+        {
+          varsIgnorePattern: '^React$',
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      'react/no-unescaped-entities': 'off',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
       ],
+    },
+  },
+  {
+    files: ['vite.config.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
+    files: ['app.js', 'firebase-config.js', 'config.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        google: 'readonly',
+        L: 'readonly',
+        firebase: 'readonly',
+        ADMIN_CONFIG: 'readonly',
+        COUNTY_DATA: 'readonly',
+        COUNTY_CITIES: 'readonly',
+        CITY_DATA: 'readonly',
+        BUSINESSES: 'readonly',
+        DISCUSSION_POSTS: 'readonly',
+        MEMBER_PROFILES: 'readonly',
+        EVENTS_DATA: 'readonly',
+        AWARDS: 'readonly',
+        MARKETPLACE_LISTINGS: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      'no-empty': 'off',
     },
   },
 ]
