@@ -887,7 +887,9 @@ class MTApp {
   toggleBusinessForm() {
     const formSection = document.getElementById('business-form-section');
     if (formSection) {
-      formSection.style.display = formSection.style.display === 'none' ? 'block' : 'none';
+      const isHidden = formSection.style.display === 'none';
+      formSection.style.display = isHidden ? 'block' : 'none';
+      this.setHeaderNavActive(isHidden ? 'business-btn' : null);
     }
   }
 
@@ -900,10 +902,12 @@ class MTApp {
       if (discussionSection.style.display === 'none') {
         discussionSection.style.display = 'block';
         if (mapSection) mapSection.style.display = 'none';
+        this.setHeaderNavActive('discussion-btn');
         this.initializeDiscussionBoard();
       } else {
         discussionSection.style.display = 'none';
         if (mapSection) mapSection.style.display = 'block';
+        this.setHeaderNavActive();
       }
     }
   }
