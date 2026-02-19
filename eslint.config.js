@@ -61,11 +61,10 @@ export default [
     },
   },
   {
-    files: ['app.js', 'firebase-config.js', 'config.js'],
+    files: ['app.js'],
     languageOptions: {
       globals: {
         ...globals.browser,
-        ...globals.node,
         google: 'readonly',
         L: 'readonly',
         firebase: 'readonly',
@@ -84,6 +83,18 @@ export default [
     rules: {
       'no-unused-vars': 'off',
       'no-empty': 'off',
+    },
+  },
+  {
+    files: ['firebase-config.js', 'config.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        firebase: 'readonly',
+        ADMIN_CONFIG: 'readonly',
+        AWARDS: 'readonly',
+      },
     },
   },
 ]

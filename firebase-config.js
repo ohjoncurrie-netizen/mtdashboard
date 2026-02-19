@@ -237,7 +237,7 @@
         .slice(0, limit);
     }
 
-    async grantAward(memberKey, awardKey, grantedBy = 'admin') {
+    async grantAward(memberKey, awardKey, _grantedBy = 'admin') {
       if (this.useFirebase) {
         try {
           const snap = await db.collection('members').doc(memberKey).get();
@@ -668,7 +668,7 @@
       if (this.useFirebase) {
         try {
           await db.collection('analytics').add(entry);
-        } catch (err) {
+        } catch (_err) {
           // Non-fatal — fall back silently
         }
       }
@@ -691,7 +691,7 @@
           const views = [];
           snap.forEach(doc => views.push(doc.data()));
           return views;
-        } catch (err) {
+        } catch (_err) {
           // Fall back to local
         }
       }
