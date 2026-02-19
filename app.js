@@ -4039,6 +4039,7 @@ class MTApp {
 
     // Community Events page
     document.getElementById('events-nav-btn')?.addEventListener('click', () => this.showEventsPage());
+    document.getElementById('marketplace-nav-btn')?.addEventListener('click', () => this.showMarketplace());
     document.getElementById('events-close-btn')?.addEventListener('click', () => this.closeEventsPage());
     document.getElementById('events-add-btn')?.addEventListener('click', () => this.showUserAddEventModal());
     document.getElementById('user-event-modal-close')?.addEventListener('click', () => this.closeUserAddEventModal());
