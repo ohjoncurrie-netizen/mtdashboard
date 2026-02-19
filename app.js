@@ -2328,6 +2328,16 @@ class MTApp {
       return;
     }
 
+    if (segments.length === 2 && segments[1] === 'marketplace') {
+      this.showMarketplace();
+      return;
+    }
+
+    if (segments.length === 2 && segments[1] === 'events') {
+      this.showEventsPage();
+      return;
+    }
+
     const countySlug = segments[1];
     const fips = this.countySlugToFips[countySlug];
     const countyName = fips ? COUNTY_NAME_MAP[fips] : null;
@@ -3244,6 +3254,7 @@ class MTApp {
       if (discussionSection) discussionSection.style.display = 'none';
       if (awardsSection) awardsSection.style.display = 'none';
       this.setHeaderNavActive('events-nav-btn');
+      this.setHash('/montana/events');
       this._populateEventsCountyFilter();
       this.loadPublicEvents();
     }
@@ -3255,6 +3266,7 @@ class MTApp {
     if (eventsSection) eventsSection.style.display = 'none';
     if (mapSection) mapSection.style.display = 'block';
     this.setHeaderNavActive();
+    this.setHash('/montana');
   }
 
   _countyNameMap() {
@@ -4750,6 +4762,7 @@ class MTApp {
     // Show marketplace
     if (marketplaceSection) marketplaceSection.style.display = 'block';
     this.setHeaderNavActive('marketplace-nav-btn');
+    this.setHash('/montana/marketplace');
 
     // Check authentication
     if (!currentUser) {
