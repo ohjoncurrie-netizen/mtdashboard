@@ -2179,6 +2179,72 @@ class MTApp {
         }).join('');
       }
     }
+
+    // Billing dashboard
+    const businesses = (window.BUSINESSES || []).slice();
+    const activeBusinesses = businesses.filter((business) => (business.billingStatus || 'active') === 'active');
+    const pastDueBusinesses = businesses.filter((business) => business.billingStatus === 'past_due');
+    const canceledBusinesses = businesses.filter((business) => business.billingStatus === 'canceled');
+    const estimatedMrr = activeBusinesses.reduce((sum, business) => sum + Number(business.monthlyPrice || 0), 0);
+
+    set('bill-total-businesses', businesses.length.toLocaleString());
+    set('bill-active', activeBusinesses.length.toLocaleString());
+    set('bill-past-due', pastDueBusinesses.length.toLocaleString());
+    set('bill-canceled', canceledBusinesses.length.toLocaleString());
+    set('bill-mrr', `$${estimatedMrr.toLocaleString()}`);
+
+    const breakdownEl = document.getElementById('billing-breakdown');
+    if (breakdownEl) {
+      const plans = [
+        { key: 'free', label: 'Free' },
+        { key: 'pro', label: 'Pro' },
+        { key: 'premium', label: 'Premium' }
+      ];
+
+      const rows = plans.map((plan) => {
+        const planBusinesses = businesses.filter((business) => (business.plan || 'free') === plan.key);
+        const planActive = planBusinesses.filter((business) => (business.billingStatus || 'active') === 'active');
+        const planPastDue = planBusinesses.filter((business) => business.billingStatus === 'past_due');
+        const planCanceled = planBusinesses.filter((business) => business.billingStatus === 'canceled');
+        const planMrr = planActive.reduce((sum, business) => sum + Number(business.monthlyPrice || 0), 0);
+
+        return {
+          label: plan.label,
+          total: planBusinesses.length,
+          active: planActive.length,
+          pastDue: planPastDue.length,
+          canceled: planCanceled.length,
+          mrr: planMrr
+        };
+      });
+
+      breakdownEl.innerHTML = `
+        <table class="analytics-table">
+          <thead>
+            <tr>
+              <th>Plan</th>
+              <th>Total</th>
+              <th>Active</th>
+              <th>Past Due</th>
+              <th>Canceled</th>
+              <th>MRR</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td>${row.label}</td>
+                <td>${row.total}</td>
+                <td>${row.active}</td>
+                <td>${row.pastDue}</td>
+                <td>${row.canceled}</td>
+                <td>$${row.mrr.toLocaleString()}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
   }
 
   buildCountySlugMap() {
