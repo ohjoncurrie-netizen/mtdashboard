@@ -102,6 +102,7 @@ Montana County Explorer is a comprehensive web application that brings Montana's
 3. **Set up API keys**
    - Add your Google Maps API key in the Google Maps script tag in `index.html`
    - Configure Firebase settings in `firebase-config.js` if using Firebase features
+   - **Important:** Never commit API keys to version control. Consider using environment variables or a `.env` file for production deployments
 
 4. **Start development server**
    ```bash
@@ -143,7 +144,7 @@ Or manually:
 firebase deploy --only hosting
 ```
 
-The site is hosted at: **simplemontana.com**
+The site is hosted at: **simpleMontana.com**
 
 ## 📁 Project Structure
 
