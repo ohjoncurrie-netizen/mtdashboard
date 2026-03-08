@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "simplemontana-7d1da"
+  },
+  "targets": {
+    "simplemontana-7d1da": {
+      "hosting": {
+        "main": [
+          "simplemontana-7d1da"
+        ],
+        "landing": [
+          "simplemontana-landing"
+        ]
+      }
+    }
   }
 }

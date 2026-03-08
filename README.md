@@ -132,33 +132,45 @@ The build output will be in the `dist/` directory.
 
 ## 🌐 Deployment
 
-This project is configured for Firebase Hosting:
+This project uses Firebase Hosting **multi-site** configuration:
+
+| Target | Public Dir | URL |
+|--------|-----------|-----|
+| `main` | `dist/` | `simplemontana.com` (Montana Explorer app) |
+| `landing` | `dist/` → `/landing/index.html` | `landing.simplemontana.com` (React landing page) |
 
 ```bash
-# Deploy to Firebase
+# Deploy both hosting targets
 npm run deploy
 ```
 
-Or manually:
+Or deploy individually:
 ```bash
-firebase deploy --only hosting
+firebase deploy --only hosting:main
+firebase deploy --only hosting:landing
 ```
 
-The site is hosted at: **simpleMontana.com**
+> **Note:** Before deploying the `landing` target for the first time, create a second Firebase Hosting site named `simplemontana-landing` in the [Firebase Console](https://console.firebase.google.com) and connect your subdomain to it.
+
+The main site is hosted at: **simpleMontana.com**
 
 ## 📁 Project Structure
 
 ```
 mtdashboard/
 ├── src/                    # Source files
-│   └── main.jsx           # React entry point
+│   └── main.jsx           # React entry point (renders LandingPage only)
+├── landing/                # Subdomain entry point
+│   └── index.html         # HTML template for landing subdomain (built to dist/landing/)
 ├── dist/                   # Production build output
+│   ├── landing/           # Built landing page (served by landing subdomain)
+│   └── assets/            # Shared JS/CSS assets
 ├── public/                 # Static assets
 ├── app.js                  # Core application logic
 ├── config.js              # Configuration and data
-├── LandingPage.jsx        # Landing page component
-├── index.html             # Main HTML template
-├── index-landing.html     # Landing page HTML
+├── LandingPage.jsx        # Landing page React component
+├── index.html             # Main HTML template (Montana Explorer app)
+├── index-landing.html     # Legacy landing page HTML (superseded by landing/index.html)
 ├── styles.css             # Base styles
 ├── modern-enhancements.css # Enhanced styling
 ├── simple_montana.geojson # County boundary data

@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "predeploy": "npm run build",
-    "deploy": "firebase deploy --only hosting"
+    "deploy": "firebase deploy --only hosting:main,hosting:landing"
   },
   "dependencies": {
     "framer-motion": "^11.0.3",
